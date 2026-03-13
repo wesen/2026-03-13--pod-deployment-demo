@@ -32,7 +32,7 @@ func TestSession_SpaceStation_Step(t *testing.T) {
 
 	// Run 5 ticks and verify snapshots advance.
 	for i := 0; i < 5; i++ {
-		if err := sess.Step(); err != nil {
+		if _, err := sess.Step(); err != nil {
 			t.Fatalf("step %d: %v", i+1, err)
 		}
 	}
@@ -50,6 +50,9 @@ func TestSession_SpaceStation_Step(t *testing.T) {
 	if len(snap.Actual) == 0 {
 		t.Error("expected non-empty actual after 5 ticks")
 	}
+	if len(snap.UI) == 0 {
+		t.Error("expected active UI schema in snapshot")
+	}
 }
 
 func TestSession_TacoFleet_Step(t *testing.T) {
@@ -66,7 +69,7 @@ func TestSession_TacoFleet_Step(t *testing.T) {
 	}
 
 	for i := 0; i < 3; i++ {
-		if err := sess.Step(); err != nil {
+		if _, err := sess.Step(); err != nil {
 			t.Fatalf("step %d: %v", i+1, err)
 		}
 	}
@@ -93,7 +96,7 @@ func TestSession_PresetSwitch(t *testing.T) {
 
 	// Tick a few times.
 	for i := 0; i < 3; i++ {
-		_ = sess.Step()
+		_, _ = sess.Step()
 	}
 	if sess.CurrentSnapshot().Tick != 3 {
 		t.Fatal("expected 3 ticks before switch")
@@ -113,7 +116,7 @@ func TestSession_PresetSwitch(t *testing.T) {
 	}
 
 	// Verify ticking works on new preset.
-	if err := sess.Step(); err != nil {
+	if _, err := sess.Step(); err != nil {
 		t.Fatalf("step after switch: %v", err)
 	}
 	if sess.CurrentSnapshot().Tick != 1 {
@@ -131,8 +134,8 @@ func TestSession_Reset(t *testing.T) {
 		t.Fatalf("new session: %v", err)
 	}
 
-	_ = sess.Step()
-	_ = sess.Step()
+	_, _ = sess.Step()
+	_, _ = sess.Step()
 	sess.Reset()
 
 	snap := sess.CurrentSnapshot()
@@ -154,7 +157,7 @@ func TestSession_SpecUpdate(t *testing.T) {
 		t.Fatalf("new session: %v", err)
 	}
 
-	sess.UpdateSpec(map[string]any{
+	state := sess.UpdateSpec(map[string]any{
 		"o2Percent": 25.0,
 		"co2Ppm":    500.0,
 	})
@@ -162,6 +165,25 @@ func TestSession_SpecUpdate(t *testing.T) {
 	spec := sess.Spec()
 	if spec["o2Percent"] != 25.0 {
 		t.Errorf("expected o2Percent 25, got %v", spec["o2Percent"])
+	}
+	if state.Desired["o2Percent"] != 25.0 {
+		t.Errorf("expected snapshot desired o2Percent 25, got %v", state.Desired["o2Percent"])
+	}
+}
+
+func TestSession_SetSpeedPublishesSnapshotState(t *testing.T) {
+	cat := loadCatalog(t)
+	preset, _ := cat.ByID("space-station")
+
+	hub := events.NewHub()
+	sess, err := runtime.NewSession(&preset, hub)
+	if err != nil {
+		t.Fatalf("new session: %v", err)
+	}
+
+	state := sess.SetSpeed(450)
+	if state.SpeedMs != 450 {
+		t.Fatalf("expected speed 450, got %d", state.SpeedMs)
 	}
 }
 
@@ -178,7 +200,7 @@ func TestSession_EventsPublished(t *testing.T) {
 		t.Fatalf("new session: %v", err)
 	}
 
-	_ = sess.Step()
+	_, _ = sess.Step()
 
 	// Drain to find snapshot.updated event.
 	found := false

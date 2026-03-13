@@ -302,3 +302,188 @@ Work on docmgr ticket GOJA-RECONCILE-001, check off task by task, commit as you 
 - New entrypoint: `cmd/scenario-demo/main.go` (port 3002, env `SCENARIOS_DIR`, `ADDR`)
 - Test command: `go test ./internal/scenario/... -count=1`
 - Smoke test: `go run ./cmd/scenario-demo/ &` then curl endpoints
+
+## Step 4: Review The Current Runtime State And Document The Integration Failures
+
+After the runtime landed, the next useful step was not more coding. The useful step was to inspect how the new backend and new UI were actually wired into the repository. That review showed that the runtime and UI work are both directionally strong, but the repository still behaves like two applications living side by side. The review document written in this step is intended to help a new intern understand that distinction quickly.
+
+The main conclusion is that the biggest problems are not in the goja loop itself. The biggest problems are ownership and integration problems: the old pod-demo path is still the default application, the new workbench UI is not yet the embedded UI that Go serves, and some backend mutations do not publish authoritative state updates.
+
+### Prompt Context
+
+**User prompt (verbatim):**
+
+```text
+I sadly gave this task to your colleague which has done some big fuckshit on the backend especially, have a look, analyze it, create a detailed document (we were on GOJA-RECONCILE-001 still), for the intern, upload to remarkable. 
+
+The UI is pretty nice, but there might be connection / fundamental issues, the design is good.
+```
+
+**Assistant interpretation:** Review the current implementation rather than continuing feature work, identify where the backend/runtime integration is structurally wrong, write a clear intern-oriented diagnosis, and upload the updated bundle.
+
+**Inferred user intent:** Preserve the good design and good UI direction, but produce a sober technical assessment that explains what is actually wrong and what should be stabilized first.
+
+**Commit (code):** N/A
+
+### What I did
+
+- Inspected the current runtime, handler, app bootstrap, and UI files.
+- Compared the legacy app path against the new scenario-runtime path.
+- Examined the current uncommitted UI diff and the current embedded asset tree.
+- Ran:
+  - `go test ./... -count=1`
+  - `go test -race ./internal/scenario/... -count=1`
+  - `npm --prefix ui run typecheck`
+  - `npm --prefix ui run build`
+- Attempted a live `go run ./cmd/scenario-demo` smoke test and recorded the sandbox socket restriction.
+- Wrote a new design-doc reviewing the current implementation state and recommending a stabilization order.
+
+### Why
+
+- The user explicitly described the current backend state as suspect and asked for analysis, not more implementation.
+- The right document for an intern is not just "what should exist", but "what exists now, what is salvageable, and what is currently misleading."
+- The repository now has enough implementation detail that a second document was more useful than revising the original greenfield design doc.
+
+### What worked
+
+- The scenario packages pass both normal tests and race-detected tests.
+- The new UI builds and typechecks cleanly.
+- The review clearly separated product-direction problems from local implementation correctness.
+
+### What didn't work
+
+- A live server smoke test could not bind a port in this environment:
+
+```text
+2026/03/13 14:57:01 http server: listen tcp :3002: socket: operation not permitted
+```
+
+- The embedded frontend was still stale relative to the new workbench source, so the strongest integration claims could not be justified from the served asset path alone.
+
+### What I learned
+
+- The new runtime is not the main problem. The main problem is that the repo still has two application graphs and they are both partly alive.
+- The new UI is good, but it currently relies on a backend state contract that is only partially authoritative.
+
+### What was tricky to build
+
+- The hard part was not writing the review. The hard part was separating "bad architecture" from "incomplete migration." The runtime code itself is coherent enough to pass tests, so the document had to explain that the deeper faults are at the app-boundary and asset-pipeline layers.
+
+### What warrants a second pair of eyes
+
+- The exact migration path from the old `internal/app` + `internal/server` stack to the scenario-runtime stack should be agreed explicitly before more feature work lands.
+- The state contract between `ScenarioApp` and the scenario API needs a deliberate pass so spec and speed changes stop relying on optimistic local React state.
+
+### What should be done in the future
+
+- Collapse the repository onto one canonical app entrypoint.
+- Refresh and commit the embedded assets so Go serves the current workbench.
+- Make every mutating scenario API return and publish authoritative snapshot state.
+
+### Code review instructions
+
+- Read the new review doc in `design-doc/02-intern-review-of-the-current-goja-runtime-and-ui-integration.md`.
+- Cross-check the split entrypoints in `cmd/pod-demo/main.go`, `internal/app/app.go`, and `cmd/scenario-demo/main.go`.
+- Compare `ui/src/main.tsx` and `ui/src/ScenarioApp.tsx` with `internal/web/embed/public/assets/index-C0SybDHH.js` to see the embed drift.
+- Re-run:
+  - `go test ./... -count=1`
+  - `go test -race ./internal/scenario/... -count=1`
+  - `npm --prefix ui run typecheck`
+  - `npm --prefix ui run build`
+
+### Technical details
+
+- New review document: `design-doc/02-intern-review-of-the-current-goja-runtime-and-ui-integration.md`
+- Validation commands:
+  - `go test ./... -count=1`
+  - `go test -race ./internal/scenario/... -count=1`
+  - `npm --prefix ui run typecheck`
+  - `npm --prefix ui run build`
+
+## Step 5: Make The Backend Session Snapshot Authoritative
+
+The first repair slice focused on the state contract between backend and frontend. The earlier runtime implementation was usable, but it still made the frontend do too much guessing. Spec updates and speed changes did not publish immediate authoritative state, and the active UI schema was not present in the main session snapshot. That meant the browser had to combine optimistic local state with side fetches and websocket events.
+
+This slice fixes that backend contract before touching app bootstrap or embedded assets. The session snapshot now includes the active preset UI schema, mutating endpoints return a fresh snapshot immediately, and the session publishes immediate update events for visible state mutations. That gives the frontend a single authoritative shape to render against.
+
+### Prompt Context
+
+**User prompt (verbatim):**
+
+```text
+fix it, add tasks (detailed granular tasks) and go task by task.
+```
+
+**Assistant interpretation:** Turn the review findings into a repair plan, break the repair into explicit ticket tasks, and then start fixing the architecture one stabilization slice at a time.
+
+**Inferred user intent:** Replace vague "we should clean this up" advice with concrete engineering work that resolves the broken contracts without discarding the good parts of the runtime or UI.
+
+**Commit (code):** Pending during this diary entry
+
+### What I did
+
+- Rewrote the remaining ticket work into granular stabilization tasks.
+- Added the active preset UI schema directly to the runtime snapshot.
+- Changed `Run`, `Pause`, `Step`, `Reset`, `UpdateSpec`, and `SetSpeed` to return fresh authoritative session state.
+- Changed mutating HTTP handlers to return `snapshot` payloads instead of tiny acknowledgement-only responses.
+- Published immediate update events for:
+  - preset switch
+  - run
+  - pause
+  - reset
+  - spec update
+  - speed update
+  - tick completion
+- Added tests that assert:
+  - UI schema exists in the session snapshot
+  - step returns a snapshot
+  - preset switch returns a snapshot
+  - spec mutation returns updated desired state
+  - speed mutation returns updated speed state
+
+### Why
+
+- The review showed that the websocket itself was not the core problem. The core problem was that the backend was not authoritative for all visible UI state.
+- This fix reduces UI guesswork and prepares the next slice, where the frontend can stop relying on optimistic local state patches.
+
+### What worked
+
+- `gofmt` ran cleanly on the updated runtime and handler files.
+- `go test ./internal/scenario/... -count=1` passed after the contract changes.
+- The repair stayed localized to the scenario runtime/server path and did not require touching the legacy pod-demo code yet.
+
+### What didn't work
+
+- Nothing failed in this slice once the contract boundary was clear. The remaining unresolved issues are repo-level wiring issues, not problems inside this repair step.
+
+### What I learned
+
+- The smallest useful backend repair was not "rewrite the UI" or "delete the old app." It was making visible session state authoritative first.
+- Once the backend returns snapshots consistently, the next frontend cleanup becomes much simpler because the browser no longer has to speculate.
+
+### What was tricky to build
+
+- The session already had both `Snapshot` and `SessionState`, so the fix had to be careful about where the active UI schema and full log state should live. The clean outcome was to keep the snapshot payload useful enough for rendering while preserving `SessionState` as the full transport object.
+
+### What warrants a second pair of eyes
+
+- Event naming now mixes the older semantic events (`preset.changed`, `session.reset`, `session.state`) with `snapshot.updated`. That is still workable, but the next pass may want to simplify the event vocabulary.
+- `cmd/pod-demo` and `internal/app` still point at the legacy application graph, so the repository is still split until the next slice lands.
+
+### What should be done in the future
+
+- Collapse the canonical app bootstrap onto the scenario runtime.
+- Then update the React workbench to consume the authoritative mutation responses and remove the remaining optimistic update behavior.
+
+### Code review instructions
+
+- Start with `internal/scenario/runtime/session.go`.
+- Then review `internal/scenario/server/handler.go`.
+- Run `go test ./internal/scenario/... -count=1`.
+- Confirm the ticket task list now reflects the completed backend contract work.
+
+### Technical details
+
+- Validation command: `go test ./internal/scenario/... -count=1`
+- New snapshot field: active preset `ui`
+- Mutating endpoints now return `{"ok": true, "snapshot": ...}`

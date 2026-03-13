@@ -49,3 +49,27 @@ Implemented the goja-backed runtime, session loop with preset switching, full HT
 - /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/internal/scenario/runtime/session.go — Session manager with tick loop, preset switching, and event publishing
 - /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/internal/scenario/server/handler.go — HTTP API and WebSocket handler for the scenario runtime
 - /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/cmd/scenario-demo/main.go — New entrypoint for the scenario runtime server
+
+
+## 2026-03-13
+
+Reviewed the current runtime and workbench integration state, documented the split between the new scenario runtime and the legacy pod-demo path, and wrote an intern-focused stabilization guide before re-uploading the ticket bundle to reMarkable
+
+### Related Files
+
+- /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/ttmp/2026/03/13/GOJA-RECONCILE-001--goja-scenario-runtime-for-reconcile-presets/design-doc/02-intern-review-of-the-current-goja-runtime-and-ui-integration.md — New implementation review and stabilization guide
+- /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/cmd/pod-demo/main.go — Evidence for the old default entrypoint still pointing at the legacy app
+- /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/cmd/scenario-demo/main.go — Evidence for the new runtime existing in a parallel entrypoint
+- /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/ui/src/ScenarioApp.tsx — Evidence for the new uncommitted workbench UI and its current backend contract assumptions
+
+
+## 2026-03-13
+
+Stabilized the first backend repair slice by making the scenario session snapshot authoritative: active UI schema now rides inside the session snapshot, mutating endpoints return fresh snapshots, immediate update events are published for visible state changes, and tests now lock that contract in place
+
+### Related Files
+
+- /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/internal/scenario/runtime/session.go — Snapshot model and session mutation behavior now publish authoritative state
+- /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/internal/scenario/server/handler.go — Mutating endpoints now return fresh snapshots
+- /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/internal/scenario/runtime/session_test.go — Session tests cover UI-in-snapshot and speed mutation behavior
+- /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/internal/scenario/server/handler_test.go — HTTP tests assert returned snapshots for step, switch, spec, reset, and speed

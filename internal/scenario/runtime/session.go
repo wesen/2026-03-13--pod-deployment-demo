@@ -13,16 +13,17 @@ import (
 
 // Snapshot captures the state of a single tick for publication.
 type Snapshot struct {
-	Preset  model.Metadata `json:"preset"`
-	Tick    int            `json:"tick"`
-	Phase   string         `json:"phase"`
-	Desired map[string]any `json:"desired"`
-	Actual  map[string]any `json:"actual"`
-	Diff    map[string]any `json:"diff"`
-	Actions []any          `json:"actions"`
-	Logs    []string       `json:"logs"`
-	Running bool           `json:"running"`
-	SpeedMs int            `json:"speedMs"`
+	Preset  model.Metadata  `json:"preset"`
+	UI      []model.Control `json:"ui"`
+	Tick    int             `json:"tick"`
+	Phase   string          `json:"phase"`
+	Desired map[string]any  `json:"desired"`
+	Actual  map[string]any  `json:"actual"`
+	Diff    map[string]any  `json:"diff"`
+	Actions []any           `json:"actions"`
+	Logs    []string        `json:"logs"`
+	Running bool            `json:"running"`
+	SpeedMs int             `json:"speedMs"`
 }
 
 // SessionState is the full JSON-friendly state returned by the snapshot API.
@@ -100,44 +101,55 @@ func (s *Session) SwitchPreset(preset *model.Preset) error {
 	s.speedMs = speed
 	s.last = s.buildSnapshot()
 
-	s.hub.Publish("preset.changed", s.last)
+	s.publishStateLocked("preset.changed")
+	s.publishStateLocked("snapshot.updated")
 	return nil
 }
 
 // Run starts periodic ticking.
-func (s *Session) Run() {
+func (s *Session) Run() SessionState {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if s.running {
-		return
+		return s.currentStateLocked()
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	s.cancel = cancel
 	s.running = true
+	s.last.Running = true
 
 	go s.loop(ctx)
-	s.hub.Publish("session.state", map[string]any{"running": true})
+	s.publishStateLocked("session.state")
+	s.publishStateLocked("snapshot.updated")
+	return s.currentStateLocked()
 }
 
 // Pause stops periodic ticking.
-func (s *Session) Pause() {
+func (s *Session) Pause() SessionState {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.stopLocked()
-	s.hub.Publish("session.state", map[string]any{"running": false})
+	s.last.Running = false
+	s.publishStateLocked("session.state")
+	s.publishStateLocked("snapshot.updated")
+	return s.currentStateLocked()
 }
 
 // Step runs exactly one tick.
-func (s *Session) Step() error {
+func (s *Session) Step() (SessionState, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.tickLocked()
+	if err := s.tickLocked(); err != nil {
+		return SessionState{}, err
+	}
+
+	return s.currentStateLocked(), nil
 }
 
 // Reset clears state without switching presets.
-func (s *Session) Reset() {
+func (s *Session) Reset() SessionState {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -147,7 +159,7 @@ func (s *Session) Reset() {
 	vm, err := NewVM(s.preset)
 	if err != nil {
 		s.hub.Publish("runtime.error", map[string]any{"error": err.Error()})
-		return
+		return s.currentStateLocked()
 	}
 
 	s.vm = vm
@@ -157,14 +169,19 @@ func (s *Session) Reset() {
 	s.allLogs = nil
 	s.last = s.buildSnapshot()
 
-	s.hub.Publish("session.reset", s.last)
+	s.publishStateLocked("session.reset")
+	s.publishStateLocked("snapshot.updated")
+	return s.currentStateLocked()
 }
 
 // UpdateSpec replaces the desired spec.
-func (s *Session) UpdateSpec(spec map[string]any) {
+func (s *Session) UpdateSpec(spec map[string]any) SessionState {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.desired = spec
+	s.desired = deepCopyMap(spec)
+	s.last = s.buildSnapshot()
+	s.publishStateLocked("snapshot.updated")
+	return s.currentStateLocked()
 }
 
 // Spec returns the current desired spec.
@@ -178,20 +195,20 @@ func (s *Session) Spec() map[string]any {
 func (s *Session) CurrentSnapshot() SessionState {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return SessionState{
-		Snapshot: s.last,
-		AllLogs:  s.allLogs,
-	}
+	return s.currentStateLocked()
 }
 
 // SetSpeed changes the tick interval in milliseconds.
-func (s *Session) SetSpeed(ms int) {
+func (s *Session) SetSpeed(ms int) SessionState {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if ms < 50 {
 		ms = 50
 	}
 	s.speedMs = ms
+	s.last.SpeedMs = ms
+	s.publishStateLocked("snapshot.updated")
+	return s.currentStateLocked()
 }
 
 // --- internal ---
@@ -257,6 +274,7 @@ func (s *Session) tickLocked() error {
 
 	s.last = Snapshot{
 		Preset:  s.preset.Metadata,
+		UI:      append([]model.Control(nil), s.preset.UI...),
 		Tick:    s.tick,
 		Phase:   s.phase,
 		Desired: desired,
@@ -268,7 +286,7 @@ func (s *Session) tickLocked() error {
 		SpeedMs: s.speedMs,
 	}
 
-	s.hub.Publish("snapshot.updated", s.last)
+	s.publishStateLocked("snapshot.updated")
 	return nil
 }
 
@@ -283,6 +301,7 @@ func (s *Session) stopLocked() {
 func (s *Session) buildSnapshot() Snapshot {
 	return Snapshot{
 		Preset:  s.preset.Metadata,
+		UI:      append([]model.Control(nil), s.preset.UI...),
 		Tick:    s.tick,
 		Phase:   s.phase,
 		Desired: deepCopyMap(s.desired),
@@ -293,6 +312,17 @@ func (s *Session) buildSnapshot() Snapshot {
 		Running: s.running,
 		SpeedMs: s.speedMs,
 	}
+}
+
+func (s *Session) currentStateLocked() SessionState {
+	return SessionState{
+		Snapshot: s.last,
+		AllLogs:  append([]string(nil), s.allLogs...),
+	}
+}
+
+func (s *Session) publishStateLocked(eventType string) {
+	s.hub.Publish(eventType, s.currentStateLocked())
 }
 
 func deepCopyMap(m map[string]any) map[string]any {

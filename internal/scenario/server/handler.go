@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/gorilla/websocket"
 
@@ -35,6 +36,7 @@ func NewHandler(cat *catalog.Catalog, session *runtime.Session, hub *events.Hub)
 	})
 
 	mux.HandleFunc("/api/presets", h.handlePresets)
+	mux.HandleFunc("/api/presets/", h.handlePresetDetail)
 	mux.HandleFunc("/api/session/preset", h.handleSwitchPreset)
 	mux.HandleFunc("/api/session/run", h.handleRun)
 	mux.HandleFunc("/api/session/pause", h.handlePause)
@@ -74,6 +76,31 @@ func (h *Handler) handlePresets(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
+func (h *Handler) handlePresetDetail(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	// Parse /api/presets/{id}/ui
+	path := r.URL.Path
+	// Strip prefix to get "{id}/ui"
+	rest := strings.TrimPrefix(path, "/api/presets/")
+	parts := strings.SplitN(rest, "/", 2)
+	if len(parts) != 2 || parts[1] != "ui" {
+		writeError(w, http.StatusNotFound, "not found")
+		return
+	}
+
+	preset, ok := h.catalog.ByID(parts[0])
+	if !ok {
+		writeError(w, http.StatusNotFound, "preset not found: "+parts[0])
+		return
+	}
+
+	writeJSON(w, http.StatusOK, preset.UI)
+}
+
 func (h *Handler) handleSwitchPreset(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -99,10 +126,12 @@ func (h *Handler) handleSwitchPreset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	snapshot := h.session.CurrentSnapshot()
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok":          true,
 		"presetId":    req.PresetID,
 		"vmRestarted": true,
+		"snapshot":    snapshot,
 	})
 }
 
@@ -111,8 +140,8 @@ func (h *Handler) handleRun(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	h.session.Run()
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "running": true})
+	snapshot := h.session.Run()
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "snapshot": snapshot})
 }
 
 func (h *Handler) handlePause(w http.ResponseWriter, r *http.Request) {
@@ -120,8 +149,8 @@ func (h *Handler) handlePause(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	h.session.Pause()
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "running": false})
+	snapshot := h.session.Pause()
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "snapshot": snapshot})
 }
 
 func (h *Handler) handleStep(w http.ResponseWriter, r *http.Request) {
@@ -129,11 +158,12 @@ func (h *Handler) handleStep(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	if err := h.session.Step(); err != nil {
+	snapshot, err := h.session.Step()
+	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "snapshot": snapshot})
 }
 
 func (h *Handler) handleReset(w http.ResponseWriter, r *http.Request) {
@@ -141,8 +171,8 @@ func (h *Handler) handleReset(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	h.session.Reset()
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+	snapshot := h.session.Reset()
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "snapshot": snapshot})
 }
 
 func (h *Handler) handleSpec(w http.ResponseWriter, r *http.Request) {
@@ -155,8 +185,8 @@ func (h *Handler) handleSpec(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		h.session.UpdateSpec(spec)
-		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+		snapshot := h.session.UpdateSpec(spec)
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "snapshot": snapshot})
 	default:
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 	}
@@ -174,8 +204,8 @@ func (h *Handler) handleSpeed(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	h.session.SetSpeed(req.SpeedMs)
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "speedMs": req.SpeedMs})
+	snapshot := h.session.SetSpeed(req.SpeedMs)
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "snapshot": snapshot})
 }
 
 func (h *Handler) handleSnapshot(w http.ResponseWriter, r *http.Request) {

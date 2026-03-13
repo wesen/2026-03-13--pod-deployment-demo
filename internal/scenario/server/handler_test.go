@@ -74,6 +74,9 @@ func TestGetSnapshot(t *testing.T) {
 	if snap["tick"] != float64(0) {
 		t.Errorf("expected tick 0, got %v", snap["tick"])
 	}
+	if _, ok := snap["ui"]; !ok {
+		t.Fatalf("expected ui schema in session snapshot")
+	}
 }
 
 func TestStepAndSnapshot(t *testing.T) {
@@ -84,6 +87,17 @@ func TestStepAndSnapshot(t *testing.T) {
 	h.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/api/session/step", nil))
 	if w.Code != 200 {
 		t.Fatalf("step: expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var stepResponse struct {
+		OK       bool           `json:"ok"`
+		Snapshot map[string]any `json:"snapshot"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&stepResponse); err != nil {
+		t.Fatalf("decode step response: %v", err)
+	}
+	if stepResponse.Snapshot["tick"] != float64(1) {
+		t.Fatalf("expected returned snapshot tick 1, got %v", stepResponse.Snapshot["tick"])
 	}
 
 	// Check snapshot.
@@ -106,6 +120,18 @@ func TestSwitchPreset(t *testing.T) {
 
 	if w.Code != 200 {
 		t.Fatalf("switch: expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var switchResponse struct {
+		OK       bool           `json:"ok"`
+		Snapshot map[string]any `json:"snapshot"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&switchResponse); err != nil {
+		t.Fatalf("decode switch response: %v", err)
+	}
+	presetSnapshot := switchResponse.Snapshot["preset"].(map[string]any)
+	if presetSnapshot["id"] != "taco-fleet" {
+		t.Fatalf("expected taco-fleet in returned snapshot, got %v", presetSnapshot["id"])
 	}
 
 	// Verify snapshot reflects new preset.
@@ -131,6 +157,18 @@ func TestSpecGetPut(t *testing.T) {
 		t.Fatalf("put spec: expected 200, got %d", w.Code)
 	}
 
+	var putResponse struct {
+		OK       bool           `json:"ok"`
+		Snapshot map[string]any `json:"snapshot"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&putResponse); err != nil {
+		t.Fatalf("decode put response: %v", err)
+	}
+	desired := putResponse.Snapshot["desired"].(map[string]any)
+	if desired["o2Percent"] != 30.0 {
+		t.Fatalf("expected returned desired o2Percent 30, got %v", desired["o2Percent"])
+	}
+
 	// GET spec.
 	w = httptest.NewRecorder()
 	h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/session/spec", nil))
@@ -152,11 +190,44 @@ func TestReset(t *testing.T) {
 		t.Fatalf("reset: expected 200, got %d", w.Code)
 	}
 
+	var resetResponse struct {
+		OK       bool           `json:"ok"`
+		Snapshot map[string]any `json:"snapshot"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&resetResponse); err != nil {
+		t.Fatalf("decode reset response: %v", err)
+	}
+	if resetResponse.Snapshot["tick"] != float64(0) {
+		t.Fatalf("expected returned tick 0 after reset, got %v", resetResponse.Snapshot["tick"])
+	}
+
 	w = httptest.NewRecorder()
 	h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/session/snapshot", nil))
 	var snap map[string]any
 	_ = json.NewDecoder(w.Body).Decode(&snap)
 	if snap["tick"] != float64(0) {
 		t.Errorf("expected tick 0 after reset, got %v", snap["tick"])
+	}
+}
+
+func TestSpeedReturnsUpdatedSnapshot(t *testing.T) {
+	h := setup(t)
+
+	body, _ := json.Marshal(map[string]any{"speedMs": 275})
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/api/session/speed", bytes.NewReader(body)))
+	if w.Code != 200 {
+		t.Fatalf("speed: expected 200, got %d", w.Code)
+	}
+
+	var response struct {
+		OK       bool           `json:"ok"`
+		Snapshot map[string]any `json:"snapshot"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("decode speed response: %v", err)
+	}
+	if response.Snapshot["speedMs"] != float64(275) {
+		t.Fatalf("expected returned speed 275, got %v", response.Snapshot["speedMs"])
 	}
 }
