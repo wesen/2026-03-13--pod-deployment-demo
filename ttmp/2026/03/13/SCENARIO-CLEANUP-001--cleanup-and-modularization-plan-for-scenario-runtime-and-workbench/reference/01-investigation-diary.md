@@ -382,6 +382,69 @@ go test ./... -count=1
 npm --prefix ui run typecheck
 ```
 
+## Step 5: Fix The Live Runtime Contract Bugs
+
+This step fixed the immediate breakage we had already reproduced in the ticket. The backend was able to return `200 OK` with an empty body when JSON encoding failed, `zombie-fleet` could generate `NaN` snapshot values on the second tick, and `Session.UpdateSpec()` reset the published runtime view on every slider change. Those three issues are tightly related at the user experience level, so they were fixed as one runtime-contract slice.
+
+The implementation stayed narrow on purpose. I did not start the broader backend cleanup or the UI modular split here. The goal of this commit was to make the existing runtime honest and stable before reorganizing the code around it.
+
+### Prompt Context
+
+**User prompt (verbatim):** (see Step 4)
+
+**Assistant interpretation:** Start the execution phase with the runtime bugs that were already confirmed in the previous investigation step.
+
+**Inferred user intent:** Make the existing app stop lying to the UI and stop breaking under normal scenario interaction before moving on to architectural cleanup.
+
+**Commit (code):** `81851c4` — `fix(runtime): harden snapshot updates and zombie fleet`
+
+### What I did
+- Updated `scenarios/zombie-fleet/observe.js` to preserve legitimate zero values instead of reviving them with truthy fallbacks.
+- Guarded zombie wall damage logic so it cannot turn missing wall HP into `NaN`.
+- Changed `internal/scenario/server/handler.go` so JSON responses are marshaled before headers are written and return an HTTP 500 on encoding failure.
+- Changed `internal/scenario/runtime/session.go` so `UpdateSpec()` preserves the current snapshot view and only updates `Desired`.
+- Added runtime regression tests that keep `zombie-fleet` JSON-encodable across multiple steps.
+- Added server regression tests that require non-empty valid JSON for snapshot responses.
+
+### Why
+- The current live failures were rooted in runtime semantics and transport behavior, not cosmetic UI issues.
+- Fixing these first reduces noise for every later cleanup step.
+
+### What worked
+- The focused runtime and server tests passed after the changes.
+- The fix keeps the runtime behavior intuitive: desired-state edits no longer masquerade as resets.
+
+### What didn't work
+- N/A
+
+### What I learned
+- A small scenario-state bug becomes much harder to debug when the transport layer hides serialization errors.
+- Preserving snapshot semantics in `UpdateSpec()` matters as much as the correctness of the scenario logic itself.
+
+### What was tricky to build
+- The server-side JSON failure was easy to paper over accidentally because the previous implementation wrote the status code before attempting to encode the body.
+- The scenario bug depended on zero being a legitimate value, which is exactly where JavaScript truthiness shortcuts become dangerous.
+
+### What warrants a second pair of eyes
+- Whether the UI should also defensively guard against empty or malformed WebSocket frames even after the backend fix.
+- Whether the runtime should explicitly validate outgoing snapshots for JSON-unsafe values as an additional safety net.
+
+### What should be done in the future
+- Continue with the active-backend cleanup now that the runtime contract is stable.
+
+### Code review instructions
+- Start with `scenarios/zombie-fleet/observe.js`, `internal/scenario/server/handler.go`, and `internal/scenario/runtime/session.go`.
+- Then read the new regression coverage in `internal/scenario/runtime/session_test.go` and `internal/scenario/server/handler_test.go`.
+
+### Technical details
+
+Validation commands:
+
+```bash
+go test ./internal/scenario/... -count=1
+go test ./internal/app -count=1
+```
+
 ## Usage Examples
 
 Use this diary when continuing the cleanup work:

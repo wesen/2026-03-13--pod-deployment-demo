@@ -18,10 +18,10 @@
 
 ## Backend Cleanup Tasks
 
-- [ ] Fix `scenarios/zombie-fleet/observe.js` so zero-valued wall state does not produce `NaN` snapshots.
-- [ ] Make JSON writing fail closed in the active scenario server instead of returning `200 OK` with an empty body.
-- [ ] Fix `Session.UpdateSpec()` so slider changes preserve the current runtime snapshot instead of rebuilding an empty one.
-- [ ] Add regression tests for multi-step `zombie-fleet` execution and non-empty snapshot bodies.
+- [x] Fix `scenarios/zombie-fleet/observe.js` so zero-valued wall state does not produce `NaN` snapshots.
+- [x] Make JSON writing fail closed in the active scenario server instead of returning `200 OK` with an empty body.
+- [x] Fix `Session.UpdateSpec()` so slider changes preserve the current runtime snapshot instead of rebuilding an empty one.
+- [x] Add regression tests for multi-step `zombie-fleet` execution and non-empty snapshot bodies.
 - [ ] Move the event envelope out of `internal/domain` and into `internal/events`.
 - [ ] Choose `cmd/scenario-demo` as the sole canonical binary entrypoint and remove `cmd/pod-demo`.
 - [ ] Delete the legacy pod-demo backend packages: `internal/server`, `internal/system`, `internal/controller`, `internal/state`, `internal/worker`, and `internal/domain`.
