@@ -16,6 +16,13 @@ export type UIControl = {
   children?: UIControl[];
 };
 
+export type PresetSources = {
+  observe: string;
+  compare: string;
+  plan: string;
+  execute: string;
+};
+
 export type Snapshot = {
   preset: { id: string; name: string; icon: string; description: string; initialTickMs: number };
   ui: UIControl[];

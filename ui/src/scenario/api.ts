@@ -1,4 +1,4 @@
-import type { PresetMeta, Snapshot } from "./types";
+import type { PresetMeta, PresetSources, Snapshot } from "./types";
 
 async function parseJSON<T>(response: Response, context: string): Promise<T> {
   const text = await response.text();
@@ -95,6 +95,11 @@ export async function setSessionSpeed(speedMs: number): Promise<Snapshot> {
     "/api/session/speed",
     await postJSON<SnapshotEnvelope>("/api/session/speed", { speedMs }),
   );
+}
+
+export async function fetchPresetSources(presetId: string): Promise<PresetSources> {
+  const response = await fetch(`/api/presets/${encodeURIComponent(presetId)}/sources`);
+  return parseJSON<PresetSources>(response, `/api/presets/${presetId}/sources`);
 }
 
 export async function updateSessionSpec(spec: Record<string, unknown>): Promise<Snapshot> {
