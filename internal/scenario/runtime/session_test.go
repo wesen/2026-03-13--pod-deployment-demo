@@ -83,6 +83,59 @@ func TestSession_TacoFleet_Step(t *testing.T) {
 	}
 }
 
+func TestSession_TacoFleet_DispatchesTruckTowardDesiredCount(t *testing.T) {
+	cat := loadCatalog(t)
+	preset, ok := cat.ByID("taco-fleet")
+	if !ok {
+		t.Fatal("preset taco-fleet not found")
+	}
+
+	hub := events.NewHub()
+	sess, err := runtime.NewSession(&preset, hub)
+	if err != nil {
+		t.Fatalf("new session: %v", err)
+	}
+
+	state := sess.UpdateSpec(map[string]any{
+		"trucks":           4.0,
+		"salsaPolicy":      "generous",
+		"demandMultiplier": 1.5,
+		"lunchRush":        false,
+		"hotZone":          "campus",
+	})
+
+	if state.Desired["trucks"] != 4.0 {
+		t.Fatalf("expected desired truck count 4, got %v", state.Desired["trucks"])
+	}
+
+	first, err := sess.Step()
+	if err != nil {
+		t.Fatalf("first step: %v", err)
+	}
+	trucksTickOne, ok := first.Actual["trucks"].([]any)
+	if !ok {
+		t.Fatalf("expected trucks array in actual snapshot, got %#v", first.Actual["trucks"])
+	}
+	if len(trucksTickOne) != 2 {
+		t.Fatalf("expected first tick to still observe 2 trucks before dispatch completes, got %d", len(trucksTickOne))
+	}
+	if len(first.Actions) == 0 {
+		t.Fatalf("expected dispatch action on first tick")
+	}
+
+	second, err := sess.Step()
+	if err != nil {
+		t.Fatalf("second step: %v", err)
+	}
+	trucksTickTwo, ok := second.Actual["trucks"].([]any)
+	if !ok {
+		t.Fatalf("expected trucks array in second snapshot, got %#v", second.Actual["trucks"])
+	}
+	if len(trucksTickTwo) != 3 {
+		t.Fatalf("expected dispatched truck by second tick, got %d trucks", len(trucksTickTwo))
+	}
+}
+
 func TestSession_PresetSwitch(t *testing.T) {
 	cat := loadCatalog(t)
 	space, _ := cat.ByID("space-station")

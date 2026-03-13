@@ -109,3 +109,14 @@ Refreshed the embedded frontend assets, validated the canonical scenario runtime
 - /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/internal/web/embed/public/assets/index-Ca1ZU2Ty.js — New embedded workbench bundle
 - /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/ttmp/2026/03/13/GOJA-RECONCILE-001--goja-scenario-runtime-for-reconcile-presets/tasks.md — All stabilization tasks checked off
 - /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/ttmp/2026/03/13/GOJA-RECONCILE-001--goja-scenario-runtime-for-reconcile-presets/reference/01-investigation-diary.md — Final validation and handoff notes
+
+
+## 2026-03-13
+
+Validated the `taco-fleet` scenario, reproduced the broken truck-dispatch behavior with a runtime regression test, and fixed the scenario by normalizing host state into plain JavaScript arrays and objects before mutating truck collections
+
+### Related Files
+
+- /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/scenarios/taco-fleet/observe.js — Truck state now rehydrates into plain JS arrays before `push` and other mutations
+- /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/scenarios/taco-fleet/execute.js — Reroute logic now clones actual truck state before mutation
+- /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/internal/scenario/runtime/session_test.go — Regression test proves dispatching a truck increases the fleet on the next tick

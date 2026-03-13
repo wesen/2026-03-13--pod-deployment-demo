@@ -1,5 +1,16 @@
 function observe(desired) {
-  const actual = getState("actual") || {
+  const current = getState("actual");
+  const actual = current ? {
+    trucks: (current.trucks || []).map((truck) => ({
+      id: truck.id,
+      zone: truck.zone,
+      tacos: truck.tacos,
+      salsa: truck.salsa
+    })),
+    orders: current.orders || 0,
+    satisfied: current.satisfied || 0,
+    angry: current.angry || 0
+  } : {
     trucks: [
       { id: "T1", zone: "downtown", tacos: 120, salsa: 80 },
       { id: "T2", zone: "beach", tacos: 90, salsa: 60 }

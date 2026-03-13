@@ -15,12 +15,16 @@ function execute(desired, actual, diff, actions) {
     if (action.type === "reroute") {
       log("Rerouting " + action.trucks.join(", ") + " to " + action.to);
       const current = getState("actual");
-      current.trucks.forEach((truck) => {
+      const next = current ? {
+        ...current,
+        trucks: (current.trucks || []).map((truck) => ({ ...truck }))
+      } : { trucks: [] };
+      next.trucks.forEach((truck) => {
         if (action.trucks.includes(truck.id)) {
           truck.zone = action.to;
         }
       });
-      setState("actual", current);
+      setState("actual", next);
     }
   }
 

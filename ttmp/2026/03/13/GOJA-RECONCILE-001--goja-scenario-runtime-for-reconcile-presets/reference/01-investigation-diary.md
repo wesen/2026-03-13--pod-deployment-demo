@@ -723,3 +723,95 @@ This is the step that makes the repository coherent again from the perspective o
 
 - New embedded bundle: `internal/web/embed/public/assets/index-Ca1ZU2Ty.js`
 - Removed embedded bundle: `internal/web/embed/public/assets/index-C0SybDHH.js`
+
+## Step 9: Validate And Repair The Taco-Fleet Scenario
+
+After the ticket stabilization work, the next targeted validation was the `taco-fleet` preset. The user reported that adding a truck did not appear to work. That turned out to be a real scenario bug, not a UI misunderstanding. The runtime regression test reproduced it immediately: even after dispatching a truck toward a desired fleet size of four, the second tick still showed only two trucks.
+
+The root cause was the shape of host state returned by `getState("actual")`. The scenario assumed `actual.trucks` was a normal JavaScript array, but after the round-trip through Go host state it behaved like exported Go-backed state. That made array-style mutation unreliable, especially `push()`. The fix was to normalize the stored state back into plain JavaScript arrays and objects before mutating it.
+
+### Prompt Context
+
+**User prompt (verbatim):**
+
+```text
+Validate scenarios/taco-fleet and find bugs, adding truck doesn't seem to work
+```
+
+**Assistant interpretation:** Inspect the taco-fleet scenario directly, reproduce the truck-dispatch problem with a focused test, identify the real cause, and fix it if it is real.
+
+**Inferred user intent:** Move beyond architectural cleanup and verify that the actual JS-driven scenario behavior is correct.
+
+**Commit (code):** Pending during this diary entry
+
+### What I did
+
+- Inspected:
+  - `scenarios/taco-fleet/observe.js`
+  - `scenarios/taco-fleet/compare.js`
+  - `scenarios/taco-fleet/plan.js`
+  - `scenarios/taco-fleet/execute.js`
+- Added a focused regression test in `internal/scenario/runtime/session_test.go` that:
+  - switches desired trucks to 4,
+  - steps the session twice,
+  - asserts the fleet grows from 2 to 3.
+- Reproduced the bug with:
+  - `go test ./internal/scenario/runtime -run TacoFleet -count=1 -v`
+- Fixed `observe.js` to clone `getState("actual")` into a plain JS object with a plain JS `trucks` array before mutation.
+- Fixed `execute.js` reroute behavior to clone the truck list before mutating and storing it back into host state.
+- Re-ran:
+  - `go test ./internal/scenario/runtime -run TacoFleet -count=1 -v`
+  - `go test ./internal/scenario/... -count=1`
+
+### Why
+
+- Scenario bugs are part of the product now. The host/runtime architecture can be correct while a preset still behaves incorrectly.
+- A regression test was important here because this class of bug comes from Go-host/JS-VM boundary semantics and can easily reappear.
+
+### What worked
+
+- The new taco-fleet regression test failed before the fix and passed after the fix.
+- The full scenario package test suite still passed after the scenario changes.
+- The fix stayed local to the scenario script and did not require broad runtime changes.
+
+### What didn't work
+
+- Before the fix, the runtime regression test failed exactly as expected:
+
+```text
+=== RUN   TestSession_TacoFleet_DispatchesTruckTowardDesiredCount
+    session_test.go:135: expected dispatched truck by second tick, got 2 trucks
+--- FAIL: TestSession_TacoFleet_DispatchesTruckTowardDesiredCount (0.00s)
+```
+
+### What I learned
+
+- Scenario authors cannot safely assume that host state retrieved from `getState()` will behave exactly like freshly created JavaScript arrays and objects.
+- For collection-heavy presets, it is safer to normalize host state into plain JS values before mutating it.
+
+### What was tricky to build
+
+- The bug looked at first like it might simply be deferred lifecycle semantics, because dispatch happens on one tick and the new truck should appear on the next. The regression test proved the deeper issue: even on the next tick the fleet size was still stuck at two.
+
+### What warrants a second pair of eyes
+
+- Other presets that depend on nested collections or array mutation may need the same normalization pattern.
+- A future runtime improvement could offer a host helper that returns normalized JS state directly instead of leaving each scenario to do that manually.
+
+### What should be done in the future
+
+- Audit the other scenarios for similar array or nested-object mutation assumptions.
+- Consider adding a helper primitive like `cloneState(key)` or changing `getState` semantics to return plain JS structures.
+
+### Code review instructions
+
+- Start with the new taco-fleet test in `internal/scenario/runtime/session_test.go`.
+- Then read the updated `scenarios/taco-fleet/observe.js` and `scenarios/taco-fleet/execute.js`.
+- Re-run:
+  - `go test ./internal/scenario/runtime -run TacoFleet -count=1 -v`
+  - `go test ./internal/scenario/... -count=1`
+
+### Technical details
+
+- Reproduction command: `go test ./internal/scenario/runtime -run TacoFleet -count=1 -v`
+- Fix strategy: normalize host state into plain JS arrays and objects before mutating collections
