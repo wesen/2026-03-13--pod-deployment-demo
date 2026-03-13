@@ -19,10 +19,28 @@ RelatedFiles:
       Note: Introduced the Go module for implementation step 3 (commit 0eb5c49a40129a44b263d6b8c520206e64663b42)
     - Path: internal/app/app.go
       Note: HTTP server lifecycle wiring added in implementation step 3 (commit 0eb5c49a40129a44b263d6b8c520206e64663b42)
+    - Path: internal/controller/controller.go
+      Note: Reconciliation loop introduced in step 4 (commit ad91f61f68cf01b307cb5e772e4f2d41724b069b)
+    - Path: internal/domain/model.go
+      Note: Domain contracts introduced in step 4 (commit ad91f61f68cf01b307cb5e772e4f2d41724b069b)
+    - Path: internal/events/hub.go
+      Note: WebSocket event fan-out introduced in step 4 (commit ad91f61f68cf01b307cb5e772e4f2d41724b069b)
     - Path: internal/server/handler.go
-      Note: Initial API handler scaffold added in implementation step 3 (commit 0eb5c49a40129a44b263d6b8c520206e64663b42)
+      Note: |-
+        Initial API handler scaffold added in implementation step 3 (commit 0eb5c49a40129a44b263d6b8c520206e64663b42)
+        HTTP and WebSocket endpoints introduced in step 4 (commit ad91f61f68cf01b307cb5e772e4f2d41724b069b)
     - Path: internal/server/handler_test.go
-      Note: Health endpoint coverage added in implementation step 3 (commit 0eb5c49a40129a44b263d6b8c520206e64663b42)
+      Note: |-
+        Health endpoint coverage added in implementation step 3 (commit 0eb5c49a40129a44b263d6b8c520206e64663b42)
+        Backend endpoint coverage expanded in step 4 (commit ad91f61f68cf01b307cb5e772e4f2d41724b069b)
+    - Path: internal/state/store.go
+      Note: In-memory source of truth introduced in step 4 (commit ad91f61f68cf01b307cb5e772e4f2d41724b069b)
+    - Path: internal/system/service.go
+      Note: System orchestration introduced in step 4 (commit ad91f61f68cf01b307cb5e772e4f2d41724b069b)
+    - Path: internal/worker/manager.go
+      Note: Goroutine worker manager introduced in step 4 (commit ad91f61f68cf01b307cb5e772e4f2d41724b069b)
+    - Path: internal/worker/worker.go
+      Note: Worker lifecycle simulation introduced in step 4 (commit ad91f61f68cf01b307cb5e772e4f2d41724b069b)
     - Path: ttmp/2026/03/13/POD-DEPLOYMENT-001--move-pod-reconciliation-to-go-backend/sources/local/Original React Pod Deployment Demo.jsx
       Note: Imported source snapshot referenced by this diary
 ExternalSources: []
@@ -31,6 +49,7 @@ LastUpdated: 2026-03-13T13:23:34.050949865-04:00
 WhatFor: ""
 WhenToUse: ""
 ---
+
 
 
 
@@ -300,3 +319,105 @@ git commit -m "feat(backend): scaffold pod demo service"
 
 - New files: `go.mod`, `cmd/pod-demo/main.go`, `internal/app/app.go`, `internal/server/handler.go`, `internal/server/handler_test.go`
 - Health endpoint: `GET /api/healthz`
+
+## Step 4: Implement The Backend Runtime, Reconciliation Loop, And Streaming API
+
+This step turned the scaffold into a functioning backend model of the system described in the design docs. The server now owns deployment state, pods, workers, reconcile phases, logs, scale changes, manual pod kill, chaos toggling, and a WebSocket stream for frontend subscribers.
+
+The main implementation decision held steady from the design: workers communicate with the controller through typed in-process Go commands and events. The resulting code is still an MVP, but it now expresses the real runtime boundaries instead of keeping everything in one browser component.
+
+### Prompt Context
+
+**User prompt (verbatim):** (see Step 3)
+
+**Assistant interpretation:** Continue the task-by-task implementation loop by replacing the placeholder server with real backend state, controller logic, worker goroutines, HTTP endpoints, and a WebSocket event stream.
+
+**Inferred user intent:** See the architecture translated into working code in small reviewable increments, with tests and operational notes preserved alongside the ticket.
+
+**Commit (code):** ad91f61f68cf01b307cb5e772e4f2d41724b069b — "feat(backend): add reconciliation runtime"
+
+### What I did
+
+- Added backend domain types in `internal/domain/model.go`.
+- Added the in-memory source-of-truth store in `internal/state/store.go`.
+- Added worker commands, events, manager, and goroutine runtime in `internal/worker/*`.
+- Added the event fan-out hub in `internal/events/hub.go`.
+- Added the reconcile loop in `internal/controller/controller.go`.
+- Added system orchestration and worker-event consumption in `internal/system/service.go`.
+- Replaced the placeholder server with endpoints for:
+  - `GET /api/healthz`
+  - `GET /api/snapshot`
+  - `PATCH /api/deployments/web`
+  - `POST /api/chaos/toggle`
+  - `POST /api/pods/{id}/kill`
+  - `GET /ws`
+- Updated the app lifecycle to start the background runtime before serving requests.
+- Expanded backend tests to cover snapshot and scale-triggered reconcile behavior.
+- Ran:
+
+```text
+gofmt -w $(rg --files -g "*.go")
+go test ./... -count=1
+go mod tidy
+go test ./... -count=1
+git commit -m "feat(backend): add reconciliation runtime"
+```
+
+### Why
+
+- The repository needed a real backend authority before a React frontend could be wired meaningfully.
+- Implementing the runtime first keeps the frontend task focused on projection and transport, not on business logic.
+- The typed worker command/event model is the simplest concrete expression of the design recommendation.
+
+### What worked
+
+- The backend now models the major concepts from the original demo: desired replicas, running/pending/terminating pods, worker assignment, reconcile phases, logs, and chaos toggling.
+- The HTTP test surface stayed small and direct.
+- The WebSocket dependency resolved successfully once the command ran outside the sandbox with access to the normal Go cache.
+
+### What didn't work
+
+- The first `go test ./... -count=1` failed before `go.sum` existed:
+
+```text
+internal/server/handler.go:9:2: missing go.sum entry for module providing package github.com/gorilla/websocket
+```
+
+- The first sandboxed `go mod tidy` failed because the Go tool could not use the normal build cache:
+
+```text
+go: ... open /home/manuel/.cache/go-build/...: permission denied
+```
+
+### What I learned
+
+- The backend MVP becomes much easier to reason about once store mutation, controller decisions, worker execution, and HTTP/WebSocket transport each have their own package.
+- The current test coverage is enough to prove the backend loop is alive, but not enough yet to prove every lifecycle edge case.
+
+### What was tricky to build
+
+- The main sharp edge was environment-related rather than algorithmic. Adding a real WebSocket implementation meant introducing `github.com/gorilla/websocket`, which in turn required a `go mod tidy` run that could use the machine’s normal Go cache and module download path. I first hit the expected missing-`go.sum` failure, then a sandbox permission error on `/home/manuel/.cache/go-build`, and then resolved both by running the module-resolution/test command outside the sandbox.
+
+### What warrants a second pair of eyes
+
+- The current `RandomRunningPod` helper picks the first running pod rather than a randomized victim. That is acceptable for an MVP but not a realistic chaos implementation.
+- The controller currently publishes simple event payloads and immediate phase transitions; if the frontend needs more animated phase timing, that may need a small refinement later.
+- The manual kill and scale-down flows both use the same termination path, which is correct for now but worth reviewing if richer reason codes or audit semantics become important.
+
+### What should be done in the future
+
+- Build the React frontend against the new `/api/*` and `/ws` contracts.
+- Add backend tests for scale-down, manual kill replacement, and chaos recovery.
+
+### Code review instructions
+
+- Start with `internal/system/service.go`, `internal/controller/controller.go`, and `internal/state/store.go`.
+- Then review `internal/worker/*` to see how goroutine workers receive commands and emit lifecycle events.
+- Finish with `internal/server/handler.go` and `internal/server/handler_test.go`.
+- Validate with `go test ./... -count=1`.
+
+### Technical details
+
+- New dependency: `github.com/gorilla/websocket v1.5.3`
+- Core transport endpoints: `GET /api/snapshot`, `PATCH /api/deployments/web`, `POST /api/pods/{id}/kill`, `POST /api/chaos/toggle`, `GET /ws`
+- Code commit for this step: `ad91f61f68cf01b307cb5e772e4f2d41724b069b`

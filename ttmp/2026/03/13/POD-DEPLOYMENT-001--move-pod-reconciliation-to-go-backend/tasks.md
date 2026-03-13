@@ -5,4 +5,4 @@
 - [x] Upload updated intern guide bundle to reMarkable
 - [x] Scaffold Go service and project layout for the pod demo
 - [ ] Test the MVP, update the diary, and commit each implementation step
-- [ ] Implement backend state, reconciliation loop, worker runtime, HTTP API, and WebSocket stream
+- [x] Implement backend state, reconciliation loop, worker runtime, HTTP API, and WebSocket stream

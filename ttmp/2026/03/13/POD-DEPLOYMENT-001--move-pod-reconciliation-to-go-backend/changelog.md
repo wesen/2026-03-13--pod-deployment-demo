@@ -48,3 +48,17 @@ Step 3: scaffolded the Go module, binary entrypoint, app lifecycle, and initial 
 - /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/internal/server/handler.go — Initial HTTP surface including health check
 - /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/internal/server/handler_test.go — Health endpoint test
 
+
+## 2026-03-13
+
+Step 4: implemented backend state, reconcile controller, goroutine workers, HTTP API, and WebSocket event stream (commit ad91f61f68cf01b307cb5e772e4f2d41724b069b)
+
+### Related Files
+
+- /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/internal/controller/controller.go — Reconcile loop implementation
+- /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/internal/domain/model.go — Backend domain contracts
+- /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/internal/server/handler.go — HTTP and WebSocket API surface
+- /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/internal/server/handler_test.go — Endpoint coverage for the backend MVP
+- /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/internal/state/store.go — In-memory deployment/pod/worker state
+- /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/internal/system/service.go — Runtime orchestration and worker event consumption
+
