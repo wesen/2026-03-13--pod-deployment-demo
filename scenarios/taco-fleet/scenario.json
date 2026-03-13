@@ -1,0 +1,7 @@
+{
+  "id": "taco-fleet",
+  "name": "Taco truck fleet dispatch",
+  "icon": "🌮",
+  "description": "Route trucks, restock inventory, and reduce angry customers.",
+  "initialTickMs": 900
+}

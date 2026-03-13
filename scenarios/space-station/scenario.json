@@ -1,0 +1,7 @@
+{
+  "id": "space-station",
+  "name": "Space station life support",
+  "icon": "🛸",
+  "description": "Balance atmosphere and habitat controls in a closed station loop.",
+  "initialTickMs": 800
+}

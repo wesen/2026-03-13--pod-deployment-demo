@@ -1,0 +1,19 @@
+[
+  {
+    "type": "group",
+    "label": "fleet",
+    "children": [
+      { "type": "slider", "key": "trucks", "label": "Active trucks", "min": 1, "max": 8, "step": 1 },
+      { "type": "buttons", "key": "salsaPolicy", "label": "Salsa stance", "options": ["conservative", "generous", "chaos"] }
+    ]
+  },
+  {
+    "type": "group",
+    "label": "demand",
+    "children": [
+      { "type": "slider", "key": "demandMultiplier", "label": "Hunger level", "min": 0.5, "max": 3, "step": 0.1 },
+      { "type": "toggle", "key": "lunchRush", "label": "Lunch rush mode" },
+      { "type": "select", "key": "hotZone", "label": "Priority zone", "options": ["downtown", "campus", "beach", "warehouse-district"] }
+    ]
+  }
+]

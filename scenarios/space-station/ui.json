@@ -1,0 +1,20 @@
+[
+  {
+    "type": "group",
+    "label": "atmosphere",
+    "children": [
+      { "type": "slider", "key": "o2Percent", "label": "O2 target %", "min": 15, "max": 30, "step": 0.5 },
+      { "type": "slider", "key": "co2Ppm", "label": "CO2 max ppm", "min": 200, "max": 2000, "step": 50 },
+      { "type": "slider", "key": "pressureKpa", "label": "Pressure kPa", "min": 80, "max": 110, "step": 1 }
+    ]
+  },
+  {
+    "type": "group",
+    "label": "habitat",
+    "children": [
+      { "type": "slider", "key": "tempC", "label": "Temperature C", "min": 16, "max": 28, "step": 0.5 },
+      { "type": "slider", "key": "crewAwake", "label": "Crew awake", "min": 0, "max": 6, "step": 1 },
+      { "type": "toggle", "key": "hydroponicsOn", "label": "Hydroponics active" }
+    ]
+  }
+]

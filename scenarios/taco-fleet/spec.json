@@ -1,0 +1,7 @@
+{
+  "trucks": 3,
+  "salsaPolicy": "generous",
+  "demandMultiplier": 1.5,
+  "lunchRush": false,
+  "hotZone": "campus"
+}
