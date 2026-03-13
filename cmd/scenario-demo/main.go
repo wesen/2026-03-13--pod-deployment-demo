@@ -7,19 +7,14 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/manuel/wesen/pod-deployment-demo/internal/app"
+	"github.com/manuel/wesen/pod-deployment-demo/internal/cli"
 )
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	application, err := app.New()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	if err := application.Run(ctx); err != nil {
+	if err := cli.Execute(ctx); err != nil {
 		log.Fatal(err)
 	}
 }
