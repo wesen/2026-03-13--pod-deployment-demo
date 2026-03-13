@@ -14,8 +14,8 @@ func TestLoadCatalog(t *testing.T) {
 		t.Fatalf("load catalog: %v", err)
 	}
 
-	if len(catalog.Presets) != 2 {
-		t.Fatalf("expected 2 presets, got %d", len(catalog.Presets))
+	if len(catalog.Presets) != 3 {
+		t.Fatalf("expected 3 presets, got %d", len(catalog.Presets))
 	}
 
 	if _, ok := catalog.ByID("space-station"); !ok {
@@ -24,5 +24,9 @@ func TestLoadCatalog(t *testing.T) {
 
 	if _, ok := catalog.ByID("taco-fleet"); !ok {
 		t.Fatalf("expected taco-fleet preset")
+	}
+
+	if _, ok := catalog.ByID("zombie-fleet"); !ok {
+		t.Fatalf("expected zombie-fleet preset")
 	}
 }

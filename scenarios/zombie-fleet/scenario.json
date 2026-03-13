@@ -1,0 +1,7 @@
+{
+  "id": "zombie-fleet",
+  "name": "Zombie fleet perimeter",
+  "icon": "🧟",
+  "description": "Hold the perimeter against zombie waves with walls, turrets, ammo, and an electrified fence.",
+  "initialTickMs": 900
+}

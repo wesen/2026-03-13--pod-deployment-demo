@@ -1,0 +1,7 @@
+{
+  "wallLayers": 3,
+  "turrets": 6,
+  "electrifiedFence": true,
+  "minAmmo": 200,
+  "alertLevel": "yellow"
+}

@@ -53,8 +53,8 @@ func TestListPresets(t *testing.T) {
 	if err := json.NewDecoder(w.Body).Decode(&presets); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if len(presets) != 2 {
-		t.Errorf("expected 2 presets, got %d", len(presets))
+	if len(presets) != 3 {
+		t.Errorf("expected 3 presets, got %d", len(presets))
 	}
 }
 

@@ -136,6 +136,35 @@ func TestSession_TacoFleet_DispatchesTruckTowardDesiredCount(t *testing.T) {
 	}
 }
 
+func TestSession_ZombieFleet_Step(t *testing.T) {
+	cat := loadCatalog(t)
+	preset, ok := cat.ByID("zombie-fleet")
+	if !ok {
+		t.Fatal("preset zombie-fleet not found")
+	}
+
+	hub := events.NewHub()
+	sess, err := runtime.NewSession(&preset, hub)
+	if err != nil {
+		t.Fatalf("new session: %v", err)
+	}
+
+	snap, err := sess.Step()
+	if err != nil {
+		t.Fatalf("step: %v", err)
+	}
+
+	if snap.Preset.ID != "zombie-fleet" {
+		t.Fatalf("expected zombie-fleet preset, got %s", snap.Preset.ID)
+	}
+	if len(snap.Actual) == 0 {
+		t.Fatal("expected non-empty actual state")
+	}
+	if _, ok := snap.Actual["nearby"]; !ok {
+		t.Fatalf("expected nearby field in actual state")
+	}
+}
+
 func TestSession_PresetSwitch(t *testing.T) {
 	cat := loadCatalog(t)
 	space, _ := cat.ByID("space-station")

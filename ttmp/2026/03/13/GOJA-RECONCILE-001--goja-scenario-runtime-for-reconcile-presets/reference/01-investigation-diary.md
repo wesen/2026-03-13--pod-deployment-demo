@@ -815,3 +815,94 @@ Validate scenarios/taco-fleet and find bugs, adding truck doesn't seem to work
 
 - Reproduction command: `go test ./internal/scenario/runtime -run TacoFleet -count=1 -v`
 - Fix strategy: normalize host state into plain JS arrays and objects before mutating collections
+
+## Step 10: Add The Zombie-Fleet Scenario
+
+The next scenario addition reused another strong idea from the imported React prototype: the zombie-defense simulation. Instead of copying it verbatim, this step adapted it into the repository’s current preset contract as a new directory-backed scenario called `zombie-fleet`. The goal was to add a third non-trivial preset that exercises nested state, resource depletion, and defensive planning without changing the runtime architecture again.
+
+This also served as a useful check on the scenario system itself. A preset architecture is only credible if new presets can be added without touching the core runtime. That is exactly what happened here: the work stayed in the scenario directory plus test expectations.
+
+### Prompt Context
+
+**User prompt (verbatim):**
+
+```text
+Create a zombie fleet scneario as well
+```
+
+**Assistant interpretation:** Add a new preset to the scenario catalog, following the same directory-backed goja contract as the existing scenarios.
+
+**Inferred user intent:** Prove that the generic runtime can support another rich scenario and not just the original two examples.
+
+**Commit (code):** Pending during this diary entry
+
+### What I did
+
+- Added a new scenario directory:
+  - `scenarios/zombie-fleet`
+- Created:
+  - `scenario.json`
+  - `spec.json`
+  - `ui.json`
+  - `observe.js`
+  - `compare.js`
+  - `plan.js`
+  - `execute.js`
+- Adapted the imported zombie-defense behavior into the repo’s host primitive contract.
+- Normalized nested array state in `observe.js` so wall HP and turret ammo behave as plain JS arrays after round-tripping through Go host state.
+- Added runtime coverage in `internal/scenario/runtime/session_test.go`.
+- Updated catalog and handler tests to expect three presets instead of two.
+
+### Why
+
+- The runtime architecture needs more than one or two examples to be convincing.
+- The zombie scenario is useful because it stresses nested collections, action planning, and resource pressure in a different way from `space-station` and `taco-fleet`.
+
+### What worked
+
+- The new scenario loaded successfully from the catalog.
+- A focused runtime step test for `zombie-fleet` passed.
+- The full scenario package tests passed after updating expectations.
+
+### What didn't work
+
+- One handler test was still pinned to the old preset count and failed until updated:
+
+```text
+--- FAIL: TestListPresets (0.00s)
+    handler_test.go:57: expected 2 presets, got 3
+```
+
+### What I learned
+
+- The preset directory contract is now doing what it was supposed to do: new scenario behavior can be added without runtime surgery.
+- It is worth normalizing nested collection state in scenarios that mutate arrays heavily, especially after the taco-fleet bug.
+
+### What was tricky to build
+
+- The imported zombie prototype used array-heavy state for walls and turret ammo. After the taco-fleet bug, it was important not to repeat the same host-state mutation assumption. The scenario was therefore written with normalization up front instead of waiting for another bug report.
+
+### What warrants a second pair of eyes
+
+- The naming is intentionally `zombie-fleet` to match the user request, even though the imported prototype concept was "zombie perimeter defense." If naming consistency matters, the team may want a short product naming pass later.
+
+### What should be done in the future
+
+- Optional: add UI-level smoke validation for selecting and stepping `zombie-fleet`.
+- Optional: audit the other scenarios for nested-array normalization so the pattern is consistent.
+
+### Code review instructions
+
+- Start with the files under `scenarios/zombie-fleet/`.
+- Then review `internal/scenario/catalog/catalog_test.go`, `internal/scenario/runtime/session_test.go`, and `internal/scenario/server/handler_test.go`.
+- Run:
+  - `go test ./internal/scenario/runtime -run ZombieFleet -count=1 -v`
+  - `go test ./internal/scenario/... -count=1`
+
+### Technical details
+
+- New preset ID: `zombie-fleet`
+- New preset tick speed: `900ms`
+- Validation commands:
+  - `go test ./internal/scenario/runtime -run ZombieFleet -count=1 -v`
+  - `go test ./internal/scenario/... -count=1`

@@ -120,3 +120,19 @@ Validated the `taco-fleet` scenario, reproduced the broken truck-dispatch behavi
 - /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/scenarios/taco-fleet/observe.js — Truck state now rehydrates into plain JS arrays before `push` and other mutations
 - /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/scenarios/taco-fleet/execute.js — Reroute logic now clones actual truck state before mutation
 - /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/internal/scenario/runtime/session_test.go — Regression test proves dispatching a truck increases the fleet on the next tick
+
+
+## 2026-03-13
+
+Added a new `zombie-fleet` preset to the goja scenario catalog, based on the imported zombie-defense prototype but adapted to the repo’s directory-backed scenario contract and covered by catalog, runtime, and handler tests
+
+### Related Files
+
+- /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/scenarios/zombie-fleet/scenario.json — New preset metadata
+- /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/scenarios/zombie-fleet/observe.js — Zombie wave simulation and defense state evolution
+- /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/scenarios/zombie-fleet/compare.js — Drift detection for walls, turrets, ammo, and fence state
+- /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/scenarios/zombie-fleet/plan.js — Planned defensive actions
+- /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/scenarios/zombie-fleet/execute.js — Action execution and log emission
+- /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/internal/scenario/catalog/catalog_test.go — Catalog now expects three presets
+- /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/internal/scenario/runtime/session_test.go — Zombie-fleet runtime smoke coverage
+- /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/internal/scenario/server/handler_test.go — Preset list expectations updated to three presets
