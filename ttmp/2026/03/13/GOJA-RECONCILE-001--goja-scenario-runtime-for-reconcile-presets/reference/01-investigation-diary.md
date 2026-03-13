@@ -565,3 +565,83 @@ This does not delete the old pod-demo packages yet, but it does make them non-ca
 - Canonical backend port: `:3001`
 - Scenario root resolution now defaults to `<repo>/scenarios`
 - New bootstrap test path: `/api/session/snapshot`
+
+## Step 7: Update The Workbench To Trust Backend Snapshots
+
+After the backend contract and canonical app bootstrap were fixed, the frontend could finally be simplified. The main goal in this slice was to remove the remaining places where the browser had to guess or patch local state. The workbench now treats mutation responses as authoritative and reads the active preset UI schema directly from the session snapshot.
+
+This is the first point where the frontend starts behaving like a real client of the scenario runtime instead of a partially optimistic editor sitting on top of it.
+
+### Prompt Context
+
+**User prompt (verbatim):** (same as Step 5)
+
+**Assistant interpretation:** Continue the stabilization plan by making the frontend actually consume the improved backend contract instead of keeping the earlier optimistic behavior.
+
+**Inferred user intent:** Make the good-looking workbench actually trustworthy in behavior, not only in appearance.
+
+**Commit (code):** Pending during this diary entry
+
+### What I did
+
+- Updated `ui/src/ScenarioApp.tsx` so mutation handlers now consume backend-returned snapshots for:
+  - preset switch
+  - run
+  - pause
+  - step
+  - reset
+  - speed change
+  - spec update
+- Removed the active-preset UI side fetch path from the React workbench.
+- Switched the workbench to read `snapshot.ui` directly from the authoritative session snapshot.
+- Kept websocket state reduction but aligned it with the richer session payloads now emitted by the backend.
+- Validated with:
+  - `npm --prefix ui run typecheck`
+  - `npm --prefix ui run build`
+
+### Why
+
+- The previous workbench looked good but still relied on optimistic state patches for spec changes and a separate fetch path for active preset UI metadata.
+- Now that the backend returns and emits authoritative snapshots, the browser should stop inventing state locally wherever possible.
+
+### What worked
+
+- TypeScript still typechecked after the contract changes.
+- The production build succeeded with the updated workbench entrypoint.
+- The workbench code became simpler because the `uiSchemas` cache and the `/api/presets/{id}/ui` fetch path were no longer needed for the active session.
+
+### What didn't work
+
+- Nothing failed in this slice. The remaining missing piece is embedding the newly built workbench into the Go-served asset path.
+
+### What I learned
+
+- Backend authority is only valuable if the frontend actually uses it. Once the workbench switched to returned snapshots, the component logic became noticeably less defensive.
+- The active session snapshot is a better source of truth than a local cache keyed by preset ID for the currently selected scenario.
+
+### What was tricky to build
+
+- The workbench was already partially websocket-driven, so the update had to preserve live event reduction while also using mutation responses directly. The clean compromise was to treat both returned snapshots and pushed snapshots as the same state shape.
+
+### What warrants a second pair of eyes
+
+- The backend still exposes `/api/presets/{id}/ui`. It is no longer required by the active workbench flow, but it remains in the API for now.
+- The final embed regeneration should confirm that the Go-served UI really is this new workbench and not still the stale pod dashboard bundle.
+
+### What should be done in the future
+
+- Regenerate and commit the embedded frontend assets.
+- Run the full validation suite again once the embedded assets are refreshed.
+
+### Code review instructions
+
+- Start with `ui/src/ScenarioApp.tsx`.
+- Confirm `ui/src/main.tsx` now mounts the scenario workbench.
+- Run:
+  - `npm --prefix ui run typecheck`
+  - `npm --prefix ui run build`
+
+### Technical details
+
+- Active UI schema now comes from `snapshot.ui`
+- Mutation helpers now expect `{"snapshot": ...}` response payloads

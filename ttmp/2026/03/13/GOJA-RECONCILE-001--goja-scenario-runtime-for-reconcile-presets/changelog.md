@@ -86,3 +86,14 @@ Collapsed the canonical application bootstrap onto the scenario runtime so the d
 - /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/cmd/pod-demo/main.go — Default binary now boots the scenario runtime app
 - /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/cmd/scenario-demo/main.go — Scenario demo binary reduced to an alias of the canonical app
 - /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/ui/vite.config.ts — Dev proxy realigned to the canonical backend port
+
+
+## 2026-03-13
+
+Updated the new React workbench to consume authoritative backend snapshots for mutations, stopped fetching active preset UI out-of-band, and locked the new workbench in as the frontend entrypoint that should be embedded next
+
+### Related Files
+
+- /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/ui/src/ScenarioApp.tsx — Workbench now applies returned snapshots and reads UI schema from the session snapshot
+- /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/ui/src/main.tsx — React entrypoint now mounts the scenario workbench
+- /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/ui/index.html — Browser title updated to the reconcile workbench

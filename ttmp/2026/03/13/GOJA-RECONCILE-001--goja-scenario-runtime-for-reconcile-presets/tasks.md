@@ -18,8 +18,8 @@
 - [x] Collapse the default `internal/app` bootstrap onto the scenario runtime instead of the legacy pod demo service
 - [x] Align the default Go server port and the Vite dev proxy so development and the canonical app target the same backend
 - [x] Keep `cmd/scenario-demo` as a thin alias or remove its behavioral divergence from the canonical app path
-- [ ] Update the new React workbench to consume authoritative mutation responses instead of optimistic local state
-- [ ] Remove the UI-side need for extra active-preset fetches where the session snapshot can carry the required data
+- [x] Update the new React workbench to consume authoritative mutation responses instead of optimistic local state
+- [x] Remove the UI-side need for extra active-preset fetches where the session snapshot can carry the required data
 - [ ] Regenerate embedded frontend assets so the Go-served UI matches `ui/src/ScenarioApp.tsx`
 - [ ] Run full validation for backend, frontend, embed pipeline, and ticket hygiene
 - [ ] Record each stabilization slice in the diary and changelog and commit each slice cleanly
