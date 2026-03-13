@@ -4,25 +4,23 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/manuel/wesen/pod-deployment-demo/internal/domain"
 )
 
 type Hub struct {
 	mu          sync.RWMutex
 	nextID      atomic.Uint64
-	subscribers map[uint64]chan domain.Event
+	subscribers map[uint64]chan Event
 }
 
 func NewHub() *Hub {
 	return &Hub{
-		subscribers: make(map[uint64]chan domain.Event),
+		subscribers: make(map[uint64]chan Event),
 	}
 }
 
-func (h *Hub) Subscribe() (<-chan domain.Event, func()) {
+func (h *Hub) Subscribe() (<-chan Event, func()) {
 	id := h.nextID.Add(1)
-	ch := make(chan domain.Event, 64)
+	ch := make(chan Event, 64)
 
 	h.mu.Lock()
 	h.subscribers[id] = ch
@@ -40,7 +38,7 @@ func (h *Hub) Subscribe() (<-chan domain.Event, func()) {
 }
 
 func (h *Hub) Publish(eventType string, payload interface{}) {
-	event := domain.Event{
+	event := Event{
 		Type:    eventType,
 		TS:      time.Now().UTC().Format(time.RFC3339),
 		Payload: payload,

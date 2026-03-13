@@ -9,10 +9,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+
+	"github.com/manuel/wesen/pod-deployment-demo/internal/project"
 )
 
 func main() {
-	root, err := findRepoRoot()
+	root, err := project.FindRepoRoot()
 	if err != nil {
 		panic(err)
 	}
@@ -55,25 +57,6 @@ func main() {
 		return copyFile(current, target)
 	}); err != nil {
 		panic(err)
-	}
-}
-
-func findRepoRoot() (string, error) {
-	dir, err := os.Getwd()
-	if err != nil {
-		return "", err
-	}
-
-	for {
-		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
-			return dir, nil
-		}
-
-		next := filepath.Dir(dir)
-		if next == dir {
-			return "", fmt.Errorf("repo root with go.mod not found")
-		}
-		dir = next
 	}
 }
 

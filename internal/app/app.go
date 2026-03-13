@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/manuel/wesen/pod-deployment-demo/internal/events"
@@ -15,29 +13,26 @@ import (
 	scenarioserver "github.com/manuel/wesen/pod-deployment-demo/internal/scenario/server"
 )
 
-const defaultAddr = ":3001"
-
 type App struct {
 	httpServer *http.Server
 }
 
 func New() (*App, error) {
-	addr := os.Getenv("ADDR")
-	if addr == "" {
-		addr = defaultAddr
-	}
-
-	scenariosDir, err := resolveScenariosDir()
+	cfg, err := LoadConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	cat, err := catalog.Load(scenariosDir)
+	return NewWithConfig(cfg)
+}
+
+func NewWithConfig(cfg Config) (*App, error) {
+	cat, err := catalog.Load(cfg.ScenariosDir)
 	if err != nil {
 		return nil, fmt.Errorf("load scenarios: %w", err)
 	}
 	if len(cat.Presets) == 0 {
-		return nil, fmt.Errorf("no presets found in %s", scenariosDir)
+		return nil, fmt.Errorf("no presets found in %s", cfg.ScenariosDir)
 	}
 
 	hub := events.NewHub()
@@ -51,7 +46,7 @@ func New() (*App, error) {
 
 	return &App{
 		httpServer: &http.Server{
-			Addr:              addr,
+			Addr:              cfg.Addr,
 			Handler:           handler,
 			ReadHeaderTimeout: 5 * time.Second,
 		},
@@ -81,38 +76,5 @@ func (a *App) Run(ctx context.Context) error {
 		}
 
 		return fmt.Errorf("run http server: %w", err)
-	}
-}
-
-func resolveScenariosDir() (string, error) {
-	if dir := os.Getenv("SCENARIOS_DIR"); dir != "" {
-		return dir, nil
-	}
-
-	root, err := findRepoRoot()
-	if err != nil {
-		return "", err
-	}
-
-	return filepath.Join(root, "scenarios"), nil
-}
-
-func findRepoRoot() (string, error) {
-	dir, err := os.Getwd()
-	if err != nil {
-		return "", err
-	}
-
-	for {
-		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
-			return dir, nil
-		}
-
-		next := filepath.Dir(dir)
-		if next == dir {
-			return "", fmt.Errorf("repo root with go.mod not found")
-		}
-
-		dir = next
 	}
 }
