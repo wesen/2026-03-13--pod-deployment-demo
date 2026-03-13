@@ -83,12 +83,11 @@ func (h *Handler) handlePresetDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse /api/presets/{id}/ui
+	// Parse /api/presets/{id}/{sub} where sub is "ui" or "sources"
 	path := r.URL.Path
-	// Strip prefix to get "{id}/ui"
 	rest := strings.TrimPrefix(path, "/api/presets/")
 	parts := strings.SplitN(rest, "/", 2)
-	if len(parts) != 2 || parts[1] != "ui" {
+	if len(parts) != 2 {
 		writeError(w, http.StatusNotFound, "not found")
 		return
 	}
@@ -99,7 +98,14 @@ func (h *Handler) handlePresetDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, preset.UI)
+	switch parts[1] {
+	case "ui":
+		writeJSON(w, http.StatusOK, preset.UI)
+	case "sources":
+		writeJSON(w, http.StatusOK, preset.Sources)
+	default:
+		writeError(w, http.StatusNotFound, "not found")
+	}
 }
 
 func (h *Handler) handleSwitchPreset(w http.ResponseWriter, r *http.Request) {
