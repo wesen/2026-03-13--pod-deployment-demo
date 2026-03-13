@@ -511,6 +511,72 @@ go test ./... -count=1
 rg -n "cmd/pod-demo|internal/server|internal/system|internal/controller|internal/state|internal/worker|internal/domain" cmd internal -S
 ```
 
+## Step 7: Split The Monolithic Scenario Workbench Into Modules
+
+Once the backend tree was simplified, the next big maintenance hotspot was the React workbench itself. This step broke the old `ScenarioApp.tsx` apart into typed transport modules, a session hook, a reducer, render helpers, focused presentational components, and a dedicated workbench stylesheet. The goal was not to redesign the UI. The goal was to keep behavior stable while making future edits land in the right files.
+
+This step also deleted the unused old `ui/src/App.tsx`, which was still carrying the pod-demo frontend even though the actual app entrypoint had already switched to `ScenarioApp`.
+
+### Prompt Context
+
+**User prompt (verbatim):** (see Step 4)
+
+**Assistant interpretation:** Execute the frontend modularization tasks from the cleanup ticket now that the backend cleanup has removed the competing legacy architecture.
+
+**Inferred user intent:** Make the workbench maintainable enough that future UI work stops accruing debt in one giant file.
+
+**Commit (code):** `def7951` — `refactor(frontend): split scenario workbench modules`
+
+### What I did
+- Added `ui/src/scenario/types.ts`, `api.ts`, `reducer.ts`, and `useScenarioSession.ts`.
+- Added focused UI components under `ui/src/scenario/components/`.
+- Added `ui/src/scenario/renderControl.tsx` for the recursive spec-control renderer.
+- Moved the inline workbench CSS into `ui/src/scenario/workbench.css`.
+- Replaced `ui/src/ScenarioApp.tsx` with a thin composition root.
+- Deleted the unused legacy `ui/src/App.tsx`.
+- Preserved the operator-facing workbench design while adding a defensive WebSocket empty-message guard in the session hook.
+
+### Why
+- The old workbench file was simultaneously holding types, networking, reducer logic, CSS, and rendering.
+- Splitting that file creates review seams and makes the next changes materially safer.
+
+### What worked
+- Frontend typecheck passed after the split.
+- Production build passed after the split.
+- The modular structure now matches the ticket’s recommended frontend boundaries closely.
+
+### What didn't work
+- N/A
+
+### What I learned
+- Most of the complexity in the old `ScenarioApp.tsx` was organizational, not algorithmic.
+- The UI became much easier to reason about once transport code moved into `useScenarioSession`.
+
+### What was tricky to build
+- The main constraint was keeping behavioral parity while changing file boundaries aggressively.
+- The raw JSON editor still needed to preserve its old validation behavior even after the hook/component split.
+
+### What warrants a second pair of eyes
+- Whether the current component split is the final desired grouping, or whether `SpecPanel` should eventually split further.
+- Whether the base `ui/src/styles.css` should be pruned now that the old pod-demo React app is gone.
+
+### What should be done in the future
+- Add a reducer- or hook-level test once the package-manager cleanup introduces the preferred frontend test tooling.
+
+### Code review instructions
+- Start with `ui/src/scenario/useScenarioSession.ts`, `ui/src/scenario/api.ts`, and `ui/src/scenario/reducer.ts`.
+- Then review `ui/src/scenario/components/ScenarioWorkbench.tsx` and the presentational components.
+- Finish with `ui/src/ScenarioApp.tsx` and `ui/src/scenario/workbench.css`.
+
+### Technical details
+
+Validation commands:
+
+```bash
+npm --prefix ui run typecheck
+npm --prefix ui run build
+```
+
 ## Usage Examples
 
 Use this diary when continuing the cleanup work:

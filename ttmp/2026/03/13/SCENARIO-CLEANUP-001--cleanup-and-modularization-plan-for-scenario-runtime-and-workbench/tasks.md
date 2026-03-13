@@ -31,13 +31,13 @@
 
 ## Frontend Modularization Tasks
 
-- [ ] Create `ui/src/scenario/types.ts` for transport and view-model types.
-- [ ] Create `ui/src/scenario/api.ts` for HTTP calls and snapshot-envelope decoding.
-- [ ] Create `ui/src/scenario/reducer.ts` for event reduction.
-- [ ] Create `ui/src/scenario/useScenarioSession.ts` for initial load, reconnect, and mutation orchestration.
-- [ ] Move the inline `ScenarioApp.tsx` CSS into `ui/src/scenario/workbench.css`.
-- [ ] Extract focused UI components for `PresetStrip`, `TransportBar`, `SpecPanel`, `StatePanels`, `DataPanel`, and `RuntimeLogPanel`.
-- [ ] Reduce `ui/src/ScenarioApp.tsx` to a small composition root.
+- [x] Create `ui/src/scenario/types.ts` for transport and view-model types.
+- [x] Create `ui/src/scenario/api.ts` for HTTP calls and snapshot-envelope decoding.
+- [x] Create `ui/src/scenario/reducer.ts` for event reduction.
+- [x] Create `ui/src/scenario/useScenarioSession.ts` for initial load, reconnect, and mutation orchestration.
+- [x] Move the inline `ScenarioApp.tsx` CSS into `ui/src/scenario/workbench.css`.
+- [x] Extract focused UI components for `PresetStrip`, `TransportBar`, `SpecPanel`, `StatePanels`, `DataPanel`, and `RuntimeLogPanel`.
+- [x] Reduce `ui/src/ScenarioApp.tsx` to a small composition root.
 - [ ] Add at least one reducer- or hook-level test covering malformed transport input and snapshot updates.
 
 ## Build And Workflow Tasks
