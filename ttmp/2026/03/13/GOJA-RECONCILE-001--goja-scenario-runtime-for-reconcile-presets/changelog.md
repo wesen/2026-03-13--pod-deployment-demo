@@ -37,3 +37,15 @@ Scaffolded the preset catalog layer and added two directory-backed scenario pres
 - /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/internal/scenario/catalog/catalog_test.go — Catalog coverage for preset discovery and phase loading
 - /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/scenarios/space-station/scenario.json — First sample preset metadata
 - /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/scenarios/taco-fleet/scenario.json — Second sample preset metadata
+
+
+## 2026-03-13
+
+Implemented the goja-backed runtime, session loop with preset switching, full HTTP API, WebSocket event stream, and a new scenario-demo entrypoint — completing the backend half of the generic reconcile architecture
+
+### Related Files
+
+- /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/internal/scenario/runtime/vm.go — Goja VM wrapper with host primitives and phase execution
+- /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/internal/scenario/runtime/session.go — Session manager with tick loop, preset switching, and event publishing
+- /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/internal/scenario/server/handler.go — HTTP API and WebSocket handler for the scenario runtime
+- /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/cmd/scenario-demo/main.go — New entrypoint for the scenario runtime server

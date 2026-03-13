@@ -204,3 +204,101 @@ go ahead, tasks, commit, diary, etc..
 - New preset roots:
   - `scenarios/space-station`
   - `scenarios/taco-fleet`
+
+## Step 3: Implement The Goja Runtime, Session Loop, HTTP API, And WebSocket Stream
+
+This is the main implementation slice. It wires the goja VM into a session-based runtime with a full HTTP API and WebSocket event stream, completing the backend half of the architecture described in the design doc.
+
+### Prompt Context
+
+**User prompt (verbatim):**
+
+```text
+Work on docmgr ticket GOJA-RECONCILE-001, check off task by task, commit as you go, keep a diary, continue our colleagues work, make sure to read the previous diary and the design-doc.
+```
+
+**Assistant interpretation:** Pick up where the previous colleague left off (after the catalog scaffold), implement the next unchecked tasks, and maintain the documentation chain.
+
+**Inferred user intent:** Complete the backend runtime so the system actually executes scenarios, not just loads them.
+
+**Commit (code):** `feat(runtime): add goja-backed session loop, HTTP API, and WebSocket stream`
+
+### What I did
+
+- Added `github.com/dop251/goja` as a direct dependency.
+- Created `internal/scenario/runtime/vm.go` — goja VM wrapper that:
+  - Creates a fresh goja runtime per preset.
+  - Registers host primitives: `getState`, `setState`, `log`, `randomFloat`, `randomInt`, `round`.
+  - Compiles and initializes phase scripts (`observe.js`, `compare.js`, `plan.js`, `execute.js`).
+  - Provides typed call helpers: `RunObserve`, `RunCompare`, `RunPlan`, `RunExecute`.
+- Created `internal/scenario/runtime/session.go` — session manager that:
+  - Owns one active preset + VM + state + tick counter.
+  - Implements `Run`/`Pause`/`Step`/`Reset`/`SwitchPreset`.
+  - Publishes `snapshot.updated`, `preset.changed`, `session.state`, `session.reset`, `runtime.error` events via the existing events hub.
+  - Keeps a bounded 500-entry log history.
+- Created `internal/scenario/server/handler.go` — HTTP API routes:
+  - `GET /api/presets` — list available presets.
+  - `POST /api/session/preset` — switch preset (rebuilds VM).
+  - `POST /api/session/run|pause|step|reset` — runtime control.
+  - `GET|PUT /api/session/spec` — desired-state editing.
+  - `POST /api/session/speed` — change tick interval.
+  - `GET /api/session/snapshot` — full session state.
+  - `GET /ws` — WebSocket event stream (initial snapshot + live events).
+- Created `cmd/scenario-demo/main.go` — new entrypoint that loads the catalog from `scenarios/`, initializes a session with the first preset, and serves on `:3002`.
+- Added 6 runtime unit tests and 7 HTTP handler tests (14 total new tests).
+- Ran a full end-to-end smoke test against the running server.
+
+### Why
+
+- The catalog scaffold from Step 2 provided the loading layer; this step adds the execution layer so scenarios actually run.
+- The design doc prescribed a clean VM lifecycle (new VM per preset switch) which is now implemented literally.
+- Keeping the session and HTTP API in separate packages from the existing pod-demo server means the two systems coexist without conflict.
+
+### What worked
+
+- The goja VM correctly executes both preset phase scripts with all host primitives.
+- The space-station observe/compare/plan/execute cycle produces correct atmospheric simulation results (CO2 scrubbing, repressurization, temperature control, hydroponics toggle).
+- The taco-fleet cycle correctly dispatches trucks, generates orders, and routes fleet to hot zones.
+- Preset switching rebuilds the VM and resets state cleanly — no cross-preset contamination.
+- All 14 new tests pass, all existing tests still pass.
+
+### What didn't work
+
+- Initial attempt used `call.This.ToObject(nil).Runtime()` in standalone functions to get the goja runtime for `randomFloat`/`randomInt`/`round`. The goja `*Object` type has no exported `Runtime()` method. Fixed by making these methods on the VM struct so they can access `vm.rt` directly.
+- The `go get` command initially targeted the wrong package path (`github.com/AcmeCorp-staging1/goja`). The user corrected this to the actual package at `github.com/dop251/goja`.
+
+### What I learned
+
+- The goja function call convention requires either closures capturing the runtime or method receivers to produce `goja.Value` return types — standalone functions cannot discover their owning runtime from the call context.
+- The existing `events.Hub` and `domain.Event` types are generic enough to serve both the pod-demo and the scenario runtime without modification.
+
+### What was tricky to build
+
+- The phase function signatures differ: `observe(desired)`, `compare(desired, actual)`, `plan(desired, actual, diff)`, `execute(desired, actual, diff, actions)`. Each needs a different call helper in the VM wrapper, and the return types differ (map vs slice vs void). This required careful type export handling.
+- The `round()` primitive needed in `observe.js` was not in the original design doc's primitive list but was used by the space-station scenario. Added it to avoid runtime errors.
+
+### What warrants a second pair of eyes
+
+- The session mutex is held during the entire tick. If phase scripts become expensive, this could block API calls. For this demo the concern is minor, but a production system would want phase-level locking.
+- The `deepCopyMap` function uses JSON marshal/unmarshal which silently drops non-JSON-serializable values. This is fine for the current scenarios but could surprise future preset authors.
+
+### What should be done in the future
+
+- Build the generic scenario workbench frontend (next task).
+- Add `go generate` integration for the scenario-demo binary.
+- Consider adding a `--preset` flag to start with a specific preset instead of the first alphabetical one.
+
+### Code review instructions
+
+- Start with `internal/scenario/runtime/vm.go` to understand the VM boundary and primitive surface.
+- Then read `internal/scenario/runtime/session.go` for the tick lifecycle and preset switching.
+- Check `internal/scenario/server/handler.go` for the API contract.
+- Run `go test ./internal/scenario/... -count=1 -v` to see all tests pass.
+- Optionally run `go run ./cmd/scenario-demo/` and test with curl as described in the smoke test.
+
+### Technical details
+
+- Dependency added: `github.com/dop251/goja v0.0.0-20260311135729-065cd970411c`
+- New entrypoint: `cmd/scenario-demo/main.go` (port 3002, env `SCENARIOS_DIR`, `ADDR`)
+- Test command: `go test ./internal/scenario/... -count=1`
+- Smoke test: `go run ./cmd/scenario-demo/ &` then curl endpoints

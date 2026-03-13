@@ -8,6 +8,6 @@
 - [x] Write the intern-oriented goja architecture and implementation guide
 - [x] Upload the design bundle to reMarkable
 - [x] Scaffold generic scenario packages and preset directories for the goja runtime
-- [ ] Implement the goja-backed session loop, preset switching, HTTP API, and WebSocket stream
-- [ ] Run end-to-end validation, update the diary, and commit each implementation slice
+- [x] Implement the goja-backed session loop, preset switching, HTTP API, and WebSocket stream
+- [x] Run end-to-end validation, update the diary, and commit each implementation slice
 - [ ] Build the generic scenario workbench frontend and embed it in Go
