@@ -9,6 +9,7 @@ import (
 	"github.com/gorilla/websocket"
 
 	"github.com/manuel/wesen/pod-deployment-demo/internal/system"
+	"github.com/manuel/wesen/pod-deployment-demo/internal/web"
 )
 
 var wsUpgrader = websocket.Upgrader{
@@ -36,6 +37,7 @@ type chaosRequest struct {
 func NewHandler(service *system.Service) http.Handler {
 	mux := http.NewServeMux()
 	server := &Server{service: service}
+	spaHandler := web.NewSPAHandler()
 
 	mux.HandleFunc("/api/healthz", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
@@ -51,7 +53,7 @@ func NewHandler(service *system.Service) http.Handler {
 	mux.HandleFunc("/api/chaos/toggle", server.handleChaos)
 	mux.HandleFunc("/api/pods/", server.handlePodKill)
 	mux.HandleFunc("/ws", server.handleWebSocket)
-	mux.HandleFunc("/", server.handleIndex)
+	mux.Handle("/", spaHandler)
 
 	return mux
 }
@@ -160,16 +162,6 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-}
-
-func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" {
-		writeError(w, http.StatusNotFound, "not found")
-		return
-	}
-
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	_, _ = w.Write([]byte("pod demo backend runtime active"))
 }
 
 func writeJSON(w http.ResponseWriter, statusCode int, payload any) {
