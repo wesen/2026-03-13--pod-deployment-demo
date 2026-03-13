@@ -62,3 +62,28 @@ Step 4: implemented backend state, reconcile controller, goroutine workers, HTTP
 - /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/internal/state/store.go — In-memory deployment/pod/worker state
 - /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/internal/system/service.go — Runtime orchestration and worker event consumption
 
+
+## 2026-03-13
+
+Step 5: added the React/Vite frontend, embedded SPA serving, frontend build generation, and static-serving regression coverage (commit 18681d8c323280da439eaffb2bc6a7a478824984)
+
+### Related Files
+
+- /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/internal/web/generate_build.go — go:generate asset copier
+- /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/internal/web/spa.go — SPA handler for serving built assets
+- /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/internal/web/spa_test.go — Static-serving fallback test
+- /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/ui/src/App.tsx — Frontend application implementation
+- /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/ui/src/styles.css — Frontend styling
+
+
+## 2026-03-13
+
+Step 6: ran the live MVP smoke test, verified the embedded frontend and API endpoints, and confirmed scale-up convergence from 3 to 5 replicas
+
+### Related Files
+
+- /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/internal/server/handler.go — Verified live HTTP and SPA serving behavior
+- /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/internal/system/service.go — Verified live reconcile and worker-event behavior
+- /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/ttmp/2026/03/13/POD-DEPLOYMENT-001--move-pod-reconciliation-to-go-backend/reference/01-investigation-diary.md — Recorded the end-to-end verification sequence
+- /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/ui/src/App.tsx — Verified the built frontend shell was served from Go
+

@@ -37,18 +37,31 @@ RelatedFiles:
       Note: In-memory source of truth introduced in step 4 (commit ad91f61f68cf01b307cb5e772e4f2d41724b069b)
     - Path: internal/system/service.go
       Note: System orchestration introduced in step 4 (commit ad91f61f68cf01b307cb5e772e4f2d41724b069b)
+    - Path: internal/web/generate_build.go
+      Note: Frontend asset generation added in step 5 (commit 18681d8c323280da439eaffb2bc6a7a478824984)
+    - Path: internal/web/spa.go
+      Note: SPA static serving added in step 5 (commit 18681d8c323280da439eaffb2bc6a7a478824984)
+    - Path: internal/web/spa_test.go
+      Note: SPA fallback coverage added in step 5 (commit 18681d8c323280da439eaffb2bc6a7a478824984)
     - Path: internal/worker/manager.go
       Note: Goroutine worker manager introduced in step 4 (commit ad91f61f68cf01b307cb5e772e4f2d41724b069b)
     - Path: internal/worker/worker.go
       Note: Worker lifecycle simulation introduced in step 4 (commit ad91f61f68cf01b307cb5e772e4f2d41724b069b)
     - Path: ttmp/2026/03/13/POD-DEPLOYMENT-001--move-pod-reconciliation-to-go-backend/sources/local/Original React Pod Deployment Demo.jsx
       Note: Imported source snapshot referenced by this diary
+    - Path: ui/package.json
+      Note: Frontend package manifest introduced in step 5 (commit 18681d8c323280da439eaffb2bc6a7a478824984)
+    - Path: ui/src/App.tsx
+      Note: React control-room UI added in step 5 (commit 18681d8c323280da439eaffb2bc6a7a478824984)
+    - Path: ui/src/styles.css
+      Note: Frontend visual design added in step 5 (commit 18681d8c323280da439eaffb2bc6a7a478824984)
 ExternalSources: []
 Summary: Chronological investigation notes for the pod deployment demo ticket, including source discovery, missing-input resolution, and architecture conclusions.
 LastUpdated: 2026-03-13T13:23:34.050949865-04:00
 WhatFor: ""
 WhenToUse: ""
 ---
+
 
 
 
@@ -421,3 +434,171 @@ go: ... open /home/manuel/.cache/go-build/...: permission denied
 - New dependency: `github.com/gorilla/websocket v1.5.3`
 - Core transport endpoints: `GET /api/snapshot`, `PATCH /api/deployments/web`, `POST /api/pods/{id}/kill`, `POST /api/chaos/toggle`, `GET /ws`
 - Code commit for this step: `ad91f61f68cf01b307cb5e772e4f2d41724b069b`
+
+## Step 5: Build The React Frontend And Wire Embedded Asset Serving
+
+With the backend runtime in place, this step moved the browser from placeholder text to a real React/Vite UI that consumes backend state. The UI now renders the control plane, workers, pod lifecycle, and logs from the Go server instead of simulating them locally, and the Go process now serves the built frontend from an embedded static directory.
+
+This step also put the production packaging path in place. The frontend can be built with Vite, copied into `internal/web/embed/public` by `go generate ./internal/web`, and then served by the Go binary through the SPA handler. That makes the system match the architecture described in the ticket instead of remaining a backend-only service.
+
+### Prompt Context
+
+**User prompt (verbatim):** (see Step 3)
+
+**Assistant interpretation:** Continue the task loop by building the React frontend, connecting it to the backend snapshot/events API, and making the Go server serve the built assets.
+
+**Inferred user intent:** End the turn with a functioning end-to-end MVP rather than only a backend service and a set of docs.
+
+**Commit (code):** 18681d8c323280da439eaffb2bc6a7a478824984 — "feat(frontend): add control room ui"
+
+### What I did
+
+- Added the `internal/web` package for SPA serving and embed/disk filesystem selection.
+- Added the `go generate` build copier in `internal/web/generate_build.go`.
+- Added a regression test for SPA fallback in `internal/web/spa_test.go`.
+- Replaced the server root handler with the SPA handler.
+- Created the Vite/React frontend in `ui/`.
+- Added snapshot/event-driven UI rendering, replica controls, chaos toggle, and pod kill actions in `ui/src/App.tsx`.
+- Added CSS styling for the control-room layout in `ui/src/styles.css`.
+- Added `.gitignore` entries for `ui/node_modules` and `ui/dist`.
+- Installed frontend dependencies and produced a lockfile with `npm --prefix ui install`.
+- Ran:
+
+```text
+npm --prefix ui run typecheck
+npm --prefix ui run build
+go generate ./internal/web
+go test ./... -count=1
+git commit -m "feat(frontend): add control room ui"
+```
+
+### Why
+
+- The backend runtime needed a real client to prove the HTTP and WebSocket contracts were useful.
+- Embedding built assets into the Go tree is the cleanest way to support a single-binary production path.
+- The frontend source tree needed to exist before the final smoke/test step could validate the whole stack.
+
+### What worked
+
+- The frontend typechecked and built cleanly with Vite.
+- The generated assets were copied into `internal/web/embed/public`.
+- The Go test suite remained green after switching root handling from plain text to the SPA handler.
+- The UI structure preserves the design narrative from the original imported React demo: control plane, worker fleet, and logs.
+
+### What didn't work
+
+- `ui/node_modules` and `ui/dist` appeared as transient working-tree noise immediately after the first frontend build, so I added `.gitignore` before committing the frontend slice.
+
+### What I learned
+
+- The backend event model was already good enough for a first frontend reducer without inventing a more complex protocol.
+- The embed/disk split stays manageable if the SPA handler is tested separately from the actual generated assets.
+
+### What was tricky to build
+
+- The sharp edge in this step was packaging discipline. I needed the repository to keep the frontend source, lockfile, and generated embed assets, while excluding `ui/node_modules` and ephemeral `ui/dist` output. The `.gitignore` addition keeps that boundary clear. The second tricky part was making the SPA handler testable without depending on the real built asset directory, which is why I split it into `NewSPAHandler()` and `NewSPAHandlerFS(...)`.
+
+### What warrants a second pair of eyes
+
+- The frontend reducer currently ignores some backend events such as worker heartbeats because the UI does not render them yet.
+- The current reconnect loop is intentionally simple and does not include jitter or backoff tuning.
+- The generated embed asset filenames are content-hashed, so follow-up commits will naturally touch the built asset files whenever the UI changes.
+
+### What should be done in the future
+
+- Add a small browser smoke test or Playwright pass once the project wants automated end-to-end coverage.
+- Consider extracting the frontend API client and reducer into smaller files if the UI grows much beyond this MVP.
+
+### Code review instructions
+
+- Start with `ui/src/App.tsx` and `ui/src/styles.css` to understand the UI and transport usage.
+- Then review `internal/web/spa.go`, `internal/web/generate_build.go`, and the `internal/server/handler.go` root wiring.
+- Validate with `npm --prefix ui run typecheck`, `go generate ./internal/web`, and `go test ./... -count=1`.
+
+### Technical details
+
+- Frontend package root: `ui/`
+- Embedded asset target: `internal/web/embed/public`
+- Code commit for this step: `18681d8c323280da439eaffb2bc6a7a478824984`
+
+## Step 6: Run The Live MVP Smoke Test And Close The Ticket Tasks
+
+The final implementation step was not another feature slice. It was the point where the repository had to prove that the pieces actually worked together as a running system: Go backend, embedded frontend, HTTP endpoints, and the reconciliation loop. I used a live `go run` session plus local `curl` requests to validate that the server came up, served the SPA, exposed the API, and actually converged after a scale request.
+
+This matters because earlier steps proved compilation and unit-level behavior, but they did not prove that the built frontend was being served from the Go process or that the runtime model behaved correctly when exercised over real HTTP. The smoke run now gives the ticket a concrete end-to-end verification record.
+
+### Prompt Context
+
+**User prompt (verbatim):** (see Step 3)
+
+**Assistant interpretation:** Finish the last open task by running the built MVP live, recording the outcomes, and then closing the ticket bookkeeping loop.
+
+**Inferred user intent:** End this turn with a documented, verified MVP rather than an unverified pile of commits.
+
+**Commit (code):** N/A
+
+### What I did
+
+- Started the server with:
+
+```text
+go run ./cmd/pod-demo
+```
+
+- Verified:
+
+```text
+curl -sSf http://127.0.0.1:3001/api/healthz
+curl -sSf http://127.0.0.1:3001/
+curl -sSf http://127.0.0.1:3001/api/snapshot
+curl -sSf -X PATCH http://127.0.0.1:3001/api/deployments/web -H 'Content-Type: application/json' -d '{"replicas":5}'
+curl -sSf http://127.0.0.1:3001/api/snapshot
+```
+
+- Waited for the worker lifecycle delay to settle and confirmed the snapshot moved from 3 running pods to 5 running pods.
+- Stopped the live server cleanly with `Ctrl-C`.
+
+### Why
+
+- The last open ticket task was specifically about testing the MVP and keeping the diary current.
+- Live verification catches integration mistakes that unit tests can miss, especially around the served frontend and runtime timing.
+
+### What worked
+
+- `GET /api/healthz` returned `{"status":"ok"}`.
+- `GET /` returned the built HTML shell referencing the generated CSS and JS assets.
+- `GET /api/snapshot` showed the expected initial deployment with 3 running pods.
+- Scaling to 5 replicas produced two pending pods, then two running pods, and the logs recorded convergence to `5/5 replicas`.
+
+### What didn't work
+
+- The first attempt at smoke testing in the previous turn was interrupted before all requests completed, so I had to restart the verification flow from a clean process state in this step.
+
+### What I learned
+
+- The backend and frontend contracts are coherent enough for a real end-to-end loop without additional protocol redesign.
+- The runtime timings are visible and understandable in the logs, which is valuable for demo and teaching purposes.
+
+### What was tricky to build
+
+- The tricky part here was not application logic but sequencing. Because the previous turn was interrupted mid-smoke-test, I needed to verify the current process state first, restart the server explicitly, and then record the smoke flow from scratch so the diary would reflect a clean, reproducible run instead of a partial one.
+
+### What warrants a second pair of eyes
+
+- The smoke test covered scale-up and frontend serving, but it did not yet exercise manual pod kill, chaos mode, or a live WebSocket client assertion.
+- The current chaos path is deterministic in victim choice, which is fine for now but worth revisiting if the demo needs more realistic failure behavior.
+
+### What should be done in the future
+
+- Add an automated browser-level smoke test once this MVP becomes something other people are expected to run repeatedly.
+
+### Code review instructions
+
+- Review the final runtime smoke sequence in this step alongside `internal/system/service.go`, `internal/server/handler.go`, and `ui/src/App.tsx`.
+- Reproduce with `go run ./cmd/pod-demo`, then hit `/`, `/api/healthz`, and `/api/snapshot`.
+- Scale the deployment to 5 and verify the logs and snapshot converge.
+
+### Technical details
+
+- Live smoke verified: `GET /`, `GET /api/healthz`, `GET /api/snapshot`, `PATCH /api/deployments/web`
+- Observed convergence: `3 -> 5` replicas, ending at `5/5` running pods
