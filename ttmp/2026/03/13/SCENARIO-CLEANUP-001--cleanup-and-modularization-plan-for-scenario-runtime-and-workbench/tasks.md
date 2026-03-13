@@ -22,12 +22,12 @@
 - [x] Make JSON writing fail closed in the active scenario server instead of returning `200 OK` with an empty body.
 - [x] Fix `Session.UpdateSpec()` so slider changes preserve the current runtime snapshot instead of rebuilding an empty one.
 - [x] Add regression tests for multi-step `zombie-fleet` execution and non-empty snapshot bodies.
-- [ ] Move the event envelope out of `internal/domain` and into `internal/events`.
-- [ ] Choose `cmd/scenario-demo` as the sole canonical binary entrypoint and remove `cmd/pod-demo`.
-- [ ] Delete the legacy pod-demo backend packages: `internal/server`, `internal/system`, `internal/controller`, `internal/state`, `internal/worker`, and `internal/domain`.
-- [ ] Move repo-root and scenario-directory resolution out of `internal/app/app.go` into shared config/path helpers.
-- [ ] Keep `internal/app/app.go` assembly-only after helper extraction.
-- [ ] Add an explicit config surface for `ADDR`, `SCENARIOS_DIR`, and frontend-dev proxy expectations.
+- [x] Move the event envelope out of `internal/domain` and into `internal/events`.
+- [x] Choose `cmd/scenario-demo` as the sole canonical binary entrypoint and remove `cmd/pod-demo`.
+- [x] Delete the legacy pod-demo backend packages: `internal/server`, `internal/system`, `internal/controller`, `internal/state`, `internal/worker`, and `internal/domain`.
+- [x] Move repo-root and scenario-directory resolution out of `internal/app/app.go` into shared config/path helpers.
+- [x] Keep `internal/app/app.go` assembly-only after helper extraction.
+- [x] Add an explicit config surface for `ADDR`, `SCENARIOS_DIR`, and frontend-dev proxy expectations.
 
 ## Frontend Modularization Tasks
 

@@ -2,6 +2,7 @@
 
 ## 2026-03-13
 
+- Removed the legacy pod-demo backend in commit `8964c82`, moved the shared event envelope into `internal/events`, and extracted explicit app config/path helpers around the surviving scenario runtime.
 - Fixed the live runtime contract failures in commit `81851c4`: `zombie-fleet` no longer produces `NaN` snapshots, the scenario server now fails closed on JSON encoding errors, and spec updates preserve the current runtime view.
 - Expanded the ticket from analysis-only into an execution plan with granular cleanup tasks for runtime fixes, legacy removal, UI modularization, and build-workflow cleanup.
 - Initial workspace created

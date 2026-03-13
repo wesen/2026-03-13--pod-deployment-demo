@@ -445,6 +445,72 @@ go test ./internal/scenario/... -count=1
 go test ./internal/app -count=1
 ```
 
+## Step 6: Remove The Legacy Pod-Demo Backend And Clarify The Active Go Architecture
+
+With the runtime contract stable, the next cleanup slice removed the dead architecture instead of continuing to document around it. This step made `cmd/scenario-demo` the only server entrypoint, deleted the old pod-demo backend packages, moved the generic event envelope into `internal/events`, and pulled app config/path logic into explicit helpers so `internal/app/app.go` could stay focused on assembly.
+
+This is the slice where the repository finally starts matching the story in the analysis docs. Before this commit, an intern still had to mentally subtract the old controller/worker/service stack. After this commit, the codebase points much more directly at the actual scenario runtime.
+
+### Prompt Context
+
+**User prompt (verbatim):** (see Step 4)
+
+**Assistant interpretation:** Execute the structural backend cleanup now that the runtime behavior is repaired, and remove the legacy code instead of preserving it.
+
+**Inferred user intent:** Make the repository reflect the real architecture, not just the docs.
+
+**Commit (code):** `8964c82` — `refactor(backend): remove legacy pod demo stack`
+
+### What I did
+- Deleted `cmd/pod-demo/main.go`.
+- Deleted the legacy pod-demo packages under `internal/controller`, `internal/domain`, `internal/server`, `internal/state`, `internal/system`, and `internal/worker`.
+- Added `internal/events/event.go` so the event envelope no longer depends on the deleted legacy `internal/domain` package.
+- Added `internal/project/project.go` for repo-root and scenarios-dir discovery.
+- Added `internal/app/config.go` with an explicit `Config` surface for `ADDR` and `SCENARIOS_DIR`.
+- Refactored `internal/app/app.go` so `New()` loads config and `NewWithConfig()` performs dependency assembly.
+- Updated `internal/web/generate_build.go` to reuse the shared project path helper.
+
+### Why
+- The old pod-demo stack was no longer part of the active product architecture.
+- Leaving generic legacy packages in place made the repository harder to understand than it needed to be.
+- Extracting config/path helpers at the same time kept the surviving backend shape clean and reviewable.
+
+### What worked
+- The full Go test suite passed after the legacy tree was removed.
+- The active scenario runtime needed only a small amount of new shared infrastructure to stand alone cleanly.
+
+### What didn't work
+- N/A
+
+### What I learned
+- The strongest cleanup step was deletion. Several architectural ambiguities vanished immediately once the old tree was removed.
+- Moving the event envelope out of the legacy domain package simplified the mental model more than its line count suggests.
+
+### What was tricky to build
+- The main risk was accidentally deleting something still referenced indirectly. Running `rg` across `cmd` and `internal` before removal was the important guardrail.
+- The shared path helper had to be placed somewhere neutral enough that both the app package and the web build helper could use it without importing unrelated runtime concerns.
+
+### What warrants a second pair of eyes
+- Whether any external scripts or habits outside the repo still assume `cmd/pod-demo`.
+- Whether `internal/project` is the preferred long-term home for repo-root discovery, or whether the team wants a different package name.
+
+### What should be done in the future
+- Continue with the UI modularization and build-workflow cleanup now that the backend tree is materially simpler.
+
+### Code review instructions
+- Start with `internal/events/event.go`, `internal/events/hub.go`, `internal/app/config.go`, `internal/project/project.go`, and `internal/app/app.go`.
+- Then review the deletions to confirm the old pod-demo stack is fully gone.
+- Finish with `go test ./... -count=1`.
+
+### Technical details
+
+Validation commands:
+
+```bash
+go test ./... -count=1
+rg -n "cmd/pod-demo|internal/server|internal/system|internal/controller|internal/state|internal/worker|internal/domain" cmd internal -S
+```
+
 ## Usage Examples
 
 Use this diary when continuing the cleanup work:
