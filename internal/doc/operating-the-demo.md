@@ -1,78 +1,87 @@
 ---
-Title: "Operating the Demo"
+Title: "Getting Started"
 Slug: "operating-the-demo"
-Short: "Step-by-step guide to running the server, opening the workbench, and driving a scenario."
+Short: "Hands-on getting started guide for running the demo and understanding what the workbench is showing you."
 Topics:
 - pod-deployment-demo
 - frontend
 - operations
+- getting-started
 Commands:
 - serve
 - help
 Flags:
 - addr
 - scenarios-dir
-IsTopLevel: false
+IsTopLevel: true
 IsTemplate: false
 ShowPerDefault: true
 SectionType: Tutorial
+Order: 30
 ---
 
-This tutorial walks through running the demo and validating the main operator loop. It matters because the project is easiest to understand from the outside in: start the server, open the browser, then watch how API calls and live events change the snapshot.
+This tutorial gets a new user from clone to comprehension. The goal is not only to make the app run, but to make the first session meaningful. By the end you should know what each panel represents, what one tick does, and how to separate runtime behavior from presentation behavior.
 
-## Prerequisites
+## Before You Start
 
-This section covers what must exist before the walkthrough will work.
+This section covers the minimum prerequisites and why they matter.
 
-- Go 1.25 or compatible toolchain
-- The repo checked out with the `scenarios/` directory present
-- Frontend assets built or generated if you want to test the embedded production bundle
+You need:
 
-If you are developing the UI separately, a local Vite dev server is fine. If you are validating the production binary, rebuild embedded assets first:
+- a Go 1.25-compatible toolchain,
+- the repository with the `scenarios/` directory present,
+- frontend assets built if you want to exercise the embedded production bundle rather than a separate dev server.
+
+If you are validating the production path, generate the embedded assets first:
 
 ```bash
 go generate ./internal/web
 ```
 
-## Step 1: Start the Server
+That command matters because the Go binary serves embedded frontend assets. If the bundle is missing, the server can still be healthy while the browser shows only the fallback HTML warning.
 
-This section covers the core entrypoint and why the flags matter.
+## Step 1: Run the Server
+
+This section covers the main entrypoint and how to override defaults.
 
 ```bash
 go run ./cmd/scenario-demo serve --addr :3001 --scenarios-dir ./scenarios
 ```
 
-Use `--addr` when another process already owns port 3001. Use `--scenarios-dir` when you want to test an alternate preset set or a fixture tree.
+Use `--addr` when port `3001` is already taken. Use `--scenarios-dir` when you want to point the runtime at a different preset tree. The environment variables `ADDR` and `SCENARIOS_DIR` still work, but the flags are clearer when you are explaining the setup to another engineer.
 
-## Step 2: Open the Workbench
+## Step 2: Open the Workbench With the Right Expectations
 
-This section covers the main UI surface.
+This section covers how to read the UI.
 
-Open `http://localhost:3001`. The workbench should show:
+Open `http://localhost:3001`. You should see:
 
-- the active preset strip,
-- editable desired-state controls,
-- runtime transport controls such as run, pause, step, reset, and speed,
-- current desired, actual, diff, and actions panels,
-- runtime logs.
+- a preset strip,
+- desired-state controls generated from `ui.json`,
+- transport controls for run, pause, step, reset, and speed,
+- structured data panels for desired state, actual state, diff, and actions,
+- a runtime log view.
 
-If the page renders a "frontend assets missing" message, the backend is healthy but the embedded bundle is absent or stale.
+Do not treat the UI as a source of truth. It is a rendering of backend-authored snapshots. That distinction matters. The workbench is closer to an oscilloscope than to a smart client.
 
-## Step 3: Drive a Scenario
+## Step 3: Run One Intentional Tick
 
-This section covers the minimum useful operator loop.
+This section covers the fastest path to understanding the reconciliation loop.
 
-1. Pick a preset from the strip.
-2. Edit one or more desired-state controls.
-3. Press `Step` to run a single reconcile cycle.
-4. Inspect `actual`, `diff`, and `actions`.
-5. Press `Run` to watch the loop continue automatically.
+Use this sequence:
 
-Use `Reset` when you want a clean VM and clean desired state without changing presets. Use preset switching when you want a full runtime rebuild with a different scenario package.
+1. Pick a preset.
+2. Change one desired-state control.
+3. Press `Step`.
+4. Read the panels in order: desired, actual, diff, actions, logs.
 
-## Step 4: Inspect the Transport
+This sequence is more useful than pressing `Run` immediately. A single tick makes causality visible. You can see exactly what the runtime observed, what drift it found, what plan it generated, and what execution side effects it logged.
 
-This section covers direct verification outside the browser.
+Only after that should you press `Run` to watch the loop continue automatically.
+
+## Step 4: Verify the Backend Directly
+
+This section covers how to debug without trusting the browser.
 
 Fetch the latest snapshot:
 
@@ -86,19 +95,32 @@ List presets:
 curl http://localhost:3001/api/presets
 ```
 
-These endpoints matter because they let you separate UI bugs from backend bugs. If the HTTP payload is correct and the browser is wrong, the issue is in the frontend reducer or rendering path. If the HTTP payload is already wrong, investigate the session or preset logic.
+These checks matter because they let you separate interface bugs from runtime bugs. If the JSON is right and the browser is wrong, focus on the frontend. If the JSON is wrong, focus on the preset, session, or transport path.
+
+## Step 5: Learn the Model, Not Just the Buttons
+
+This section covers the next reading order after the first successful run.
+
+After you have driven one preset manually, read the docs in this order:
+
+1. `scenario-demo help reconciliation-loop-reference`
+2. `scenario-demo help runtime-architecture`
+3. `scenario-demo help authoring-scenarios`
+
+That path moves from fundamentals to implementation to extension. It is the fastest way to become dangerous in the codebase.
 
 ## Troubleshooting
 
 | Problem | Cause | Solution |
 |---------|-------|----------|
-| Port 3001 is already in use | Another process owns the listen address | Start with `--addr` on a free port |
-| The browser shows a JSON parse or websocket error | The backend emitted malformed or empty websocket payloads | Inspect the backend event stream and verify the latest frontend reducer code is running |
-| The workbench controls update but the runtime does not move | The session is paused or a stage is failing | Use `Step` once and inspect runtime logs and the current phase |
-| `go generate ./internal/web` fails | The UI dependencies or build toolchain are missing | Install the UI toolchain and run `pnpm --dir ui install` before regenerating assets |
+| The browser says frontend assets are missing | The backend is serving the fallback page because the embedded bundle is stale or absent | Run `go generate ./internal/web` and restart the server |
+| Clicking controls changes values but not behavior | The session may be paused or the active preset logic may not react the way you expect | Use `Step` and inspect the diff and action plan before assuming the UI is broken |
+| The browser reports a WebSocket parse error | The event stream payload is malformed or empty | Compare against `/api/session/snapshot` and inspect recent runtime/frontend parsing changes |
+| A new user understands the buttons but not the purpose | The loop semantics are still implicit | Point them to `scenario-demo help reconciliation-loop-reference` immediately after the first run |
 
 ## See Also
 
-- `glaze help pod-deployment-demo`
-- `glaze help runtime-architecture`
-- `glaze help authoring-scenarios`
+- `scenario-demo help pod-deployment-demo`
+- `scenario-demo help runtime-architecture`
+- `scenario-demo help reconciliation-loop-reference`
+- `scenario-demo help authoring-scenarios`

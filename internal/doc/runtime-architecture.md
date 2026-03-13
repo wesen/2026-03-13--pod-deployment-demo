@@ -1,90 +1,121 @@
 ---
 Title: "Runtime Architecture"
 Slug: "runtime-architecture"
-Short: "Backend architecture for catalog loading, session state, event fanout, and transport handling."
+Short: "Detailed architecture guide for the Go runtime, transports, session state, and scenario sandboxing model."
 Topics:
 - pod-deployment-demo
 - scenario-runtime
 - backend
+- reconciliation
 Commands:
 - serve
 - help
-IsTopLevel: false
+IsTopLevel: true
 IsTemplate: false
 ShowPerDefault: true
 SectionType: GeneralTopic
+Order: 20
 ---
 
-This page explains the backend architecture that turns static scenario files into a live reconcile loop. It matters because most bugs in this project are boundary bugs: a preset loads incorrectly, the VM carries state across resets, or the transport publishes an incomplete event.
+This guide explains how the backend turns a folder full of JSON and JavaScript into a live reconciliation system. It matters because the demo only stays understandable if its boundaries stay sharp: catalog loading is separate from session state, session state is separate from transport, and transport is separate from the UI.
 
-## Startup Sequence
+The architecture is intentionally asymmetric. Go owns lifecycle, memory, network transport, timing, and snapshot publication. JavaScript owns scenario semantics. React owns presentation. That asymmetry keeps each layer legible.
 
-This section covers what happens between process start and the first browser paint.
+## Boot Sequence
 
-`internal/app.LoadConfig` resolves the listen address and scenario root. `internal/app.NewWithConfig` then loads the scenario catalog, selects the first preset, constructs a session with a fresh Goja VM, and wires the shared event hub into the HTTP server.
+This section covers what happens from process start to first usable page.
 
-The startup order is intentional:
+`internal/app.LoadConfig` resolves `ADDR` and `SCENARIOS_DIR`. `internal/app.NewWithConfig` then does four things in order:
 
-1. Load the preset catalog first so startup fails fast on malformed scenario files.
-2. Create the first session before binding HTTP routes so the server never exposes a half-initialized runtime.
-3. Attach the event hub once so the WebSocket path and session publishing share a single fanout mechanism.
+1. Load the scenario catalog from disk.
+2. Select the first preset.
+3. Build a fresh runtime session and Goja VM from that preset.
+4. Wire the HTTP server around the session and shared event hub.
 
-If startup fails, treat it as a content or configuration problem rather than a transport problem. Most boot-time errors come from missing JSON files, malformed JSON, or invalid JavaScript in a preset.
+That ordering is deliberate. Startup should fail before the server listens if the preset set is invalid. A half-started demo that serves HTTP but cannot run a scenario is worse than a hard startup error because it gives users a false signal that the system is healthy.
 
-## Session Model
+## Catalog Layer
 
-This section covers how session state is represented and why the backend owns it.
+This section covers the boundary between files on disk and runtime memory.
 
-`runtime.Session` is the authoritative mutable state machine. It holds:
+The catalog loader scans the `scenarios/` directory and expects each child directory to be a complete preset package. It reads:
+
+- metadata from `scenario.json`,
+- initial desired state from `spec.json`,
+- generated control definitions from `ui.json`,
+- stage source strings from `observe.js`, `compare.js`, `plan.js`, and `execute.js`.
+
+This layer does not interpret scenario semantics. Its job is only to validate that the package is structurally complete and to build an in-memory `model.Preset`. That narrow responsibility matters because it keeps catalog failures obvious. If a file is missing or malformed, the system fails at load time instead of producing strange runtime behavior later.
+
+## Session Layer
+
+This section covers the core state machine and why the backend must own it.
+
+`runtime.Session` is the authoritative mutable object for one active preset. It tracks:
 
 - the active preset,
-- the current Goja VM,
-- the desired state map,
-- the last published snapshot,
-- accumulated log history,
-- the tick speed and running status,
+- the current VM,
+- the desired spec,
+- the current tick count and phase,
+- the latest snapshot,
+- the running state and tick speed,
+- bounded log history,
 - a cancel function for the background loop.
 
-The session owns mutation APIs such as `Run`, `Pause`, `Step`, `Reset`, `SwitchPreset`, `SetSpeed`, and `UpdateSpec`. Each method updates backend state first and then publishes JSON-friendly snapshots and event envelopes. That design keeps transport handlers stateless and prevents the frontend from drifting away from backend truth.
+Every control mutation funnels through the session: run, pause, step, reset, switch preset, set speed, and update spec. That design prevents the frontend from inventing behavior. The browser can request state changes, but it cannot author truth. Only the session can do that.
 
-## Tick Pipeline
+## Reconciliation Execution
 
-This section covers one reconcile tick and why the phase boundaries are explicit.
+This section covers how one tick actually runs.
 
-Each tick executes the four stage files in order:
+During a tick, the session deep-copies the current desired state and executes the four stage functions in order. Each stage runs inside the preset's Goja VM:
 
-1. `observe.js` reads the desired state and produces the current actual state.
-2. `compare.js` calculates drift between desired and actual.
-3. `plan.js` decides what actions should reconcile the drift.
-4. `execute.js` applies those actions and emits logs.
+1. `observe` returns a JSON-like view of the current world.
+2. `compare` returns a JSON-like drift description.
+3. `plan` returns an action list.
+4. `execute` applies the actions and emits logs.
 
-The backend snapshots the intermediate outputs after the full tick, not after every function call. That keeps the transport simple while still exposing the resulting `actual`, `diff`, `actions`, and `phase` fields to the UI.
+If any stage errors, the session marks the phase as error and publishes a runtime error event. If all stages succeed, the session flushes VM logs, appends them to the bounded history, increments the tick counter, returns to the idle phase, and publishes a `snapshot.updated` event.
 
-When a stage fails, the runtime switches to an error phase and publishes a `runtime.error` event. That failure mode is deliberate: errors remain visible to the operator instead of being swallowed in the browser console.
+The tick pipeline is valuable because it exposes decision boundaries. A user can see whether a problem is observational, comparative, planning-related, or execution-related instead of flattening all controller behavior into one opaque "reconcile" box.
 
-## Transport Layer
+## Goja Sandbox Model
 
-This section covers the HTTP and WebSocket split.
+This section covers what the JavaScript environment can and cannot do.
 
-HTTP routes under `/api/` handle request-response interactions such as listing presets, changing the desired spec, stepping the runtime, and fetching the latest snapshot. The WebSocket at `/ws` pushes the initial snapshot and subsequent events from the shared hub.
+Each preset gets a fresh Goja runtime when the session is created, reset, or switched to a different preset. The Go host registers a very small set of primitives:
 
-This separation matters operationally:
+- `getState(key)` and `setState(key, value)` for per-VM private state,
+- `log(message)` for operator-visible runtime logs,
+- `randomFloat`, `randomInt`, and `round` for simulation helpers.
 
-- HTTP remains easy to script and test.
-- WebSocket traffic stays append-only and event-oriented.
-- Reconnect behavior is simple because the browser can always fetch a fresh snapshot over HTTP before resubscribing to live updates.
+This is not a general-purpose plugin runtime. The JS code does not get raw filesystem access, arbitrary Go object references, or transport handles. It receives plain values and returns plain values. That constraint is the whole point. The runtime wants scenario logic to be expressive but still auditable and serializable.
+
+The sandbox also preserves an important architectural property: implementation detail can stay hidden in JS while the system-level control loop remains visible in Go. A preset author can write clever internal logic in `compare.js` or `execute.js`, but the runtime still surfaces the resulting diff, actions, and logs to the operator.
+
+## Transport and UI Contract
+
+This section covers why the transport is split between HTTP and WebSocket.
+
+HTTP endpoints handle command-style interactions: list presets, fetch a snapshot, mutate the desired spec, switch presets, and drive the session. The WebSocket sends the initial snapshot followed by live event envelopes from the event hub.
+
+The browser fetches an initial snapshot and then listens for incremental updates. This keeps reconnect logic simple and preserves a clean debugging rule:
+
+- if `/api/session/snapshot` is correct, the runtime is healthy and the problem is likely in the UI,
+- if `/api/session/snapshot` is wrong, the problem is in the preset, session, or transport publication path.
 
 ## Troubleshooting
 
 | Problem | Cause | Solution |
 |---------|-------|----------|
-| Preset switching leaves old state behind | The session did not rebuild cleanly or the preset file set is inconsistent | Inspect `runtime.Session.SwitchPreset` behavior and confirm the preset directory contains all six required files |
-| WebSocket clients connect but do not update | The event hub is not receiving publishes or the runtime is idle | Trigger `step` or `run`, then compare `/api/session/snapshot` with the live stream |
-| Reset does not return to the initial desired state | The preset spec or deep-copy path is wrong | Verify `spec.json` and the session reset logic that reconstructs desired state from the preset |
-| Startup fails before serving HTTP | Catalog loading rejected a preset | Validate `scenario.json`, `spec.json`, `ui.json`, and all stage scripts in the offending preset directory |
+| Switching presets leaks old behavior | The VM or desired state was not rebuilt cleanly | Inspect `runtime.Session.SwitchPreset` and confirm the preset package is complete and valid |
+| A tick fails with an unhelpful runtime error | The JS stage threw before producing structured output | Start by checking which phase failed, then inspect the corresponding stage file |
+| Logs feel inconsistent across resets | The VM log buffer or session history assumptions are wrong | Remember that `FlushLogs` clears per-tick VM logs while the session keeps a bounded aggregate history |
+| Architecture docs drift from the implementation | Ticket docs and embedded docs diverged | Treat the embedded Glazed docs as canonical and update them alongside runtime code |
 
 ## See Also
 
-- `glaze help pod-deployment-demo`
-- `glaze help authoring-scenarios`
-- `glaze help operating-the-demo`
+- `scenario-demo help pod-deployment-demo`
+- `scenario-demo help operating-the-demo`
+- `scenario-demo help reconciliation-loop-reference`
+- `scenario-demo help authoring-scenarios`

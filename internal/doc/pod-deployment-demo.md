@@ -1,11 +1,12 @@
 ---
 Title: "Pod Deployment Demo"
 Slug: "pod-deployment-demo"
-Short: "Architecture and operating guide for the scenario-driven pod deployment demo."
+Short: "High-signal overview and user guide for the scenario-driven reconciliation demo."
 Topics:
 - scenario-runtime
 - frontend
 - presets
+- reconciliation
 Commands:
 - serve
 - help
@@ -13,105 +14,109 @@ IsTopLevel: true
 IsTemplate: false
 ShowPerDefault: true
 SectionType: GeneralTopic
+Order: 10
 ---
 
-This page explains what the pod deployment demo is, how the pieces fit together, and where to look when behavior goes wrong. The binary serves a browser UI and a JSON/WebSocket control surface for a scenario runtime. That runtime executes a four-stage reconcile loop implemented as JavaScript per scenario preset.
+This guide explains what the pod deployment demo is for, how to navigate it as a user, and why the project is built around a deliberately visible reconciliation loop. The application is not just a toy dashboard. It is a teaching and debugging environment for a controller-style system where the "thinking" stage is explicit, inspectable, and hot-swappable per scenario.
 
-The project exists to demonstrate one concrete idea: treat reconciliation as an inspectable control loop instead of a hidden controller. The UI makes each stage visible, the backend owns state and replay semantics, and the scenario assets define what "desired", "actual", and "action plan" mean for each preset.
+The central design choice is simple: the backend owns the state machine, while JavaScript supplies scenario logic. That split keeps the operational model stable in Go and lets each preset hide its domain-specific implementation behind four small JavaScript functions. The UI then renders the loop instead of trying to become the loop.
+
+## What You Are Looking At
+
+This section covers the product surface, how it behaves in practice, and why it matters when onboarding a new user.
+
+When the server is running, the browser shows a workbench with four jobs:
+
+- pick a preset that defines one scenario package,
+- edit desired state through generated controls,
+- drive the runtime with run, pause, step, reset, and speed controls,
+- inspect the current desired state, observed state, diff, action plan, and logs.
+
+That layout is intentionally opinionated. Most reconciliation systems hide the decision path inside controller internals and leave operators with only logs and side effects. This demo moves the entire loop into view so a user can answer, at any tick, "what did the controller see, what drift did it compute, and what did it decide to do about it?"
+
+## Mental Model
+
+This section covers the single most important concept in the project.
+
+The demo treats each preset as a miniature controller package:
+
+- `spec.json` is the desired state.
+- `observe.js` produces a model of the actual world.
+- `compare.js` turns the gap between desired and actual into an explicit diff.
+- `plan.js` converts drift into a list of proposed actions.
+- `execute.js` applies the actions inside the preset's private sandbox state and emits logs.
+
+Go owns the loop that calls those stages. JavaScript owns the scenario-specific meaning of "healthy", "drift", and "actuation". That separation matters because it keeps the runtime generic. The Go backend never needs to know what a taco truck, pod replica set, or zombie fleet actually means. It only needs to know how to orchestrate observe, compare, plan, and execute.
+
+## Why the JavaScript Boundary Exists
+
+This section covers the architectural boundary that makes the project flexible.
+
+The JavaScript layer is not an implementation accident. It is the extension mechanism. A preset can hide messy domain logic in JS without forcing the Go runtime to grow bespoke types, controller branches, or one-off business rules. The backend exposes a tiny host API and keeps the contract intentionally narrow:
+
+- JSON-compatible inputs and outputs,
+- a private key/value state store per VM,
+- log emission,
+- a few helper functions such as random number generation and rounding.
+
+This is the right level of abstraction for a demo platform. It gives authors freedom to model interesting behavior while preventing the runtime from turning into an unbounded scripting host with deep access to server internals.
+
+## How to Use the Project
+
+This section covers the main ways people approach the demo.
+
+If you are evaluating the product, start with `scenario-demo help operating-the-demo`. That page gets you from zero to a running workbench quickly.
+
+If you are trying to understand the backend, go next to `scenario-demo help runtime-architecture`. That page explains how catalog loading, the session, the event hub, and transport fit together.
+
+If you are trying to understand the core theory of the system, read `scenario-demo help reconciliation-loop-reference`. That page is the most detailed explanation of the reconciliation model and the JS sandbox contract.
+
+If you want to build or change presets, continue to `scenario-demo help authoring-scenarios`.
 
 ## Project Shape
 
-This section covers the top-level structure, how it works in practice, and why it matters when you need to trace a bug.
+This section covers where to look in the repository when you need source-level context.
 
 `cmd/scenario-demo`
 
-Runs the CLI entrypoint. The command now exposes `serve` plus Glazed-backed help topics so operational documentation ships inside the binary.
+Hosts the Cobra entrypoint and Glazed help integration.
 
 `internal/app`
 
-Builds the HTTP server and wires together scenario catalog loading, the runtime session, the event hub, and the HTTP/WebSocket handler.
+Builds the server from config, catalog, runtime session, and event hub.
 
 `internal/scenario/catalog`
 
-Loads scenario presets from disk. Each subdirectory under `scenarios/` is a preset package containing metadata, desired-state JSON, UI controls, and the four JavaScript stage files.
+Loads preset directories from disk and turns them into a typed catalog.
 
 `internal/scenario/runtime`
 
-Hosts the Goja VM and the mutable session state. This layer is where ticks run, where preset switches rebuild the VM, and where backend-authored snapshots are published to clients.
+Runs the reconciliation loop, owns session state, and hosts the Goja sandbox.
 
 `internal/scenario/server`
 
-Exposes the JSON API and the `/ws` stream. This package is intentionally thin: it validates requests, delegates to the session, and writes transport-friendly payloads.
+Exposes HTTP and WebSocket endpoints for the workbench.
 
 `internal/web`
 
-Serves the Vite-built frontend bundle and falls back to `index.html` for SPA routing. Production assets are embedded into the Go binary.
+Serves the built frontend and embeds production assets into the Go binary.
 
 `ui/`
 
-Contains the React workbench. It fetches the initial snapshot over HTTP, then treats the backend WebSocket stream as the source of truth for incremental state updates.
-
-## Runtime Contract
-
-This section covers the data contract between scenario assets, the runtime, and the UI.
-
-Every scenario preset contributes:
-
-- `scenario.json` for metadata shown in the UI.
-- `spec.json` for the initial desired state.
-- `ui.json` for editor controls.
-- `observe.js`, `compare.js`, `plan.js`, and `execute.js` for the reconcile stages.
-
-Each tick produces a snapshot with:
-
-- the active preset metadata and UI control definitions,
-- the tick number and current phase,
-- the desired state, actual state, diff, and planned actions,
-- log lines accumulated for the current step and over the whole session,
-- runtime state such as `running` and `speedMs`.
-
-The browser never invents state locally. It renders whatever the backend returns and uses the reducer only to merge discrete server events into the latest snapshot. That discipline matters because it keeps "what happened" debuggable even when the frontend reconnects or a preset switch rebuilds the VM.
-
-## Running the Demo
-
-This section covers the main operational entrypoint and why the flags exist.
-
-Run the server with:
-
-```bash
-go run ./cmd/scenario-demo serve
-```
-
-Useful overrides:
-
-```bash
-go run ./cmd/scenario-demo serve --addr :4010 --scenarios-dir ./scenarios
-```
-
-The command still honors environment variables:
-
-- `ADDR` sets the listen address. Default: `:3001`
-- `SCENARIOS_DIR` points at the preset root. Default: `<repo>/scenarios`
-
-Use the embedded docs from the CLI:
-
-```bash
-go run ./cmd/scenario-demo help pod-deployment-demo
-go run ./cmd/scenario-demo help runtime-architecture
-go run ./cmd/scenario-demo help authoring-scenarios
-```
+Contains the React workbench that renders backend-authored snapshots.
 
 ## Troubleshooting
 
 | Problem | Cause | Solution |
 |---------|-------|----------|
-| Browser loads but the workbench is empty | The backend could not load any presets or the frontend bundle is missing | Start with `go run ./cmd/scenario-demo serve`, then inspect startup errors and rebuild assets with `go generate ./internal/web` if the embedded bundle is stale |
-| The UI shows stale state after reconnect | The WebSocket stream dropped and the browser has not received a fresh snapshot yet | Refresh the page or inspect `/api/session/snapshot`; the backend remains the source of truth |
-| A preset fails immediately on tick | One of the scenario JavaScript stages threw inside Goja | Check the runtime error in the UI and inspect the preset's `observe.js`, `compare.js`, `plan.js`, or `execute.js` files |
-| Help topics do not show up | Embedded docs failed to load or a slug/frontmatter field is invalid | Run `go test ./...` and `go run ./cmd/scenario-demo help pod-deployment-demo` to verify the help system can load the markdown sections |
+| The app feels confusing on first load | The user does not yet have the reconciliation mental model | Read `scenario-demo help reconciliation-loop-reference` before debugging implementation details |
+| The workbench looks alive but behavior feels inconsistent | The preset hides important semantics in JavaScript | Inspect the active preset's stage files and compare the runtime panels to the stage contracts |
+| The UI and backend appear to disagree | The frontend is rendering stale or partial state | Compare the browser view with `/api/session/snapshot`; the backend snapshot is authoritative |
+| Project docs feel duplicated | Legacy ticket docs are still in the tree | Use the embedded help pages as the primary docs; the old duplicate ticket bundles have been removed |
 
 ## See Also
 
-- `glaze help runtime-architecture`
-- `glaze help authoring-scenarios`
-- `glaze help operating-the-demo`
+- `scenario-demo help operating-the-demo`
+- `scenario-demo help runtime-architecture`
+- `scenario-demo help reconciliation-loop-reference`
+- `scenario-demo help authoring-scenarios`

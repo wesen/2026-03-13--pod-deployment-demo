@@ -1,11 +1,12 @@
 ---
-Title: "Authoring Scenarios"
+Title: "JavaScript Scenario Authoring"
 Slug: "authoring-scenarios"
-Short: "Reference for adding or modifying scenario presets consumed by the runtime and UI."
+Short: "Reference for authoring presets inside the JavaScript sandbox without leaking scenario-specific logic into Go."
 Topics:
 - pod-deployment-demo
 - presets
 - scenario-runtime
+- javascript
 Commands:
 - serve
 - help
@@ -13,15 +14,16 @@ IsTopLevel: false
 IsTemplate: false
 ShowPerDefault: true
 SectionType: Application
+Order: 50
 ---
 
-This page explains how to add a new scenario preset and what each file is responsible for. It matters because the runtime is only as reliable as the preset package on disk. Missing files or fuzzy contracts show up as runtime instability later.
+This guide explains how to author scenario presets correctly inside the JavaScript sandbox. The goal is not only to make a preset work, but to keep scenario-specific logic hidden in the right place. A good preset teaches the demo something interesting without forcing the Go runtime to know anything about that domain.
 
-## Preset Directory Contract
+## The Preset Contract
 
-This section covers the required file layout and why it is rigid.
+This section covers the file layout and why every file exists.
 
-Create a new subdirectory under `scenarios/` and include these files:
+Each preset lives in its own directory:
 
 ```text
 scenarios/<preset-id>/
@@ -34,52 +36,88 @@ scenarios/<preset-id>/
   execute.js
 ```
 
-The catalog loader requires every file. There is no partial loading or optional phase support. That strictness is useful because it forces each preset to declare the complete reconcile loop instead of hiding missing behavior until runtime.
+The loader treats this as a complete package, not a loose collection of optional files. That rigidity matters because the runtime wants every preset to speak the same language even when the internal logic is wildly different.
 
-## Metadata and Spec
+## What Belongs in Go and What Belongs in JavaScript
 
-This section covers the non-code files that define identity and initial state.
+This section covers the most important authoring rule in the project.
 
-`scenario.json` should provide a stable preset identifier plus human-readable name, icon, description, and any timing defaults used by the runtime. Keep the ID stable because the frontend and tests treat it as the canonical selector.
+Put stable runtime mechanics in Go:
 
-`spec.json` defines the initial desired state. Use plain JSON values and prefer shapes that are easy to inspect in the workbench. If a value is hard to reason about in a browser JSON editor, it will also be hard to debug during a reconcile failure.
+- session lifecycle,
+- tick timing,
+- snapshot publication,
+- API endpoints,
+- event fanout,
+- frontend transport contract.
 
-`ui.json` declares the controls used to edit the spec. Align control names and field paths with the structure in `spec.json`; mismatches here produce confusing operator behavior because edits appear to succeed while mutating the wrong field.
+Put scenario meaning in JavaScript:
 
-## Stage Functions
+- how to observe the world,
+- how to define drift,
+- how to turn drift into actions,
+- how actions mutate the scenario's private state,
+- what logs should explain to the operator.
 
-This section covers how the JavaScript files should behave.
+If you find yourself wanting to add a Go `switch` on preset ID, that is almost always a design smell. The scenario is trying to escape the sandbox.
 
-Write each stage as a focused function over JSON-compatible data:
+## Stage Design Guidance
 
-- `observe.js` should read externalized desired state and synthesize the current world.
-- `compare.js` should describe drift precisely, not just return booleans.
-- `plan.js` should emit declarative actions rather than mutating state directly.
-- `execute.js` should apply the plan and append meaningful log lines.
+This section covers how to keep the four files coherent.
 
-Keep the responsibilities narrow. When a preset mixes comparison logic into `execute.js` or hides actuation in `observe.js`, the workbench becomes much less useful because the displayed phases no longer match the actual behavior.
+`observe.js`
 
-## Practical Authoring Rules
+Keep this stage focused on reading the current world. It should answer "what is true right now?" rather than "what should we do about it?"
 
-This section covers conventions that keep scenarios maintainable.
+`compare.js`
 
-- Favor deterministic outputs for the same input. Randomness makes the workbench harder to trust.
-- Return JSON-serializable values only. Anything else will fail at the transport boundary.
-- Keep log messages operator-oriented. They should explain what the runtime just did and why.
-- Model diffs explicitly. A rich diff leads to a readable plan and a more convincing demo.
-- Rebuild the frontend only when UI schema or frontend code changes. Pure preset edits affect the backend runtime directly.
+Make drift explicit. Rich diffs are worth the extra effort because they create readable plans and make the workbench more educational.
+
+`plan.js`
+
+Emit declarative actions. The plan should be understandable to a human scanning the actions panel. Avoid hiding major side effects here.
+
+`execute.js`
+
+Apply the plan and log what happened. This stage can maintain internal sandbox state through `getState` and `setState`, but it should still leave the operator with a readable trail of actions.
+
+## Sandbox API Reference
+
+This section covers the host functions available to JS and why they are constrained.
+
+The Go host exposes:
+
+- `getState(key)` to read sandbox-local state,
+- `setState(key, value)` to write sandbox-local state,
+- `log(message)` to emit operator-visible log lines,
+- `randomFloat(min, max)` and `randomInt(min, max)` for simulation behavior,
+- `round(value, decimals)` for simple numeric cleanup.
+
+These helpers are intentionally small. They give presets enough power to simulate interesting systems without giving them broad access to the server process. The sandbox is there to contain scenario behavior, not to become a second backend.
+
+## Authoring Heuristics
+
+This section covers practices that make presets easier to understand.
+
+- Favor deterministic logic unless randomness is part of the lesson.
+- Keep outputs JSON-friendly.
+- Make the diff richer before making the plan cleverer.
+- Write logs for the operator, not for the implementer.
+- Let `execute.js` own hidden internal mechanics, but expose meaningful outcomes through actions and logs.
+
+The last point matters most. The project is strongest when implementation detail can stay hidden in JavaScript while operational meaning remains visible at the workbench layer.
 
 ## Troubleshooting
 
 | Problem | Cause | Solution |
 |---------|-------|----------|
-| New preset does not appear in the UI | The directory is missing one of the required files or `scenario.json` is invalid | Compare against an existing preset and restart the server to catch loader errors early |
-| Control edits do not change the desired spec correctly | `ui.json` field bindings do not match `spec.json` | Inspect the field path definitions and verify the payload returned by `/api/session/spec` |
-| The plan stage returns nonsense actions | `compare.js` is not producing a stable diff contract | Simplify the diff shape first, then rebuild `plan.js` around that contract |
-| The runtime errors with JSON or type issues | A stage returned non-JSON-friendly values | Keep stage outputs to arrays, objects, strings, numbers, booleans, and null |
+| A preset works but is impossible to understand from the UI | Too much meaning is hidden in opaque JS internals | Surface more intent through explicit diff structures, action objects, and log lines |
+| The Go runtime keeps gaining preset-specific conditionals | Scenario logic is leaking out of the sandbox | Move the domain rule back into one of the four JS stages |
+| The plan panel is noisy but not useful | `plan.js` is returning low-value actions | Make action objects more declarative and aligned with operator language |
+| Reset does not restore expected behavior | Important mutable state lives outside the sandbox contract | Revisit `getState`/`setState` usage and ensure the preset can rebuild from `spec.json` cleanly |
 
 ## See Also
 
-- `glaze help pod-deployment-demo`
-- `glaze help runtime-architecture`
-- `glaze help operating-the-demo`
+- `scenario-demo help reconciliation-loop-reference`
+- `scenario-demo help runtime-architecture`
+- `scenario-demo help operating-the-demo`
