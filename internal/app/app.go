@@ -8,18 +8,22 @@ import (
 	"time"
 
 	"github.com/manuel/wesen/pod-deployment-demo/internal/server"
+	"github.com/manuel/wesen/pod-deployment-demo/internal/system"
 )
 
 const defaultAddr = ":3001"
 
 type App struct {
 	httpServer *http.Server
+	service    *system.Service
 }
 
 func New() *App {
-	handler := server.NewHandler()
+	service := system.New()
+	handler := server.NewHandler(service)
 
 	return &App{
+		service: service,
 		httpServer: &http.Server{
 			Addr:              defaultAddr,
 			Handler:           handler,
@@ -30,6 +34,8 @@ func New() *App {
 
 func (a *App) Run(ctx context.Context) error {
 	serverErrors := make(chan error, 1)
+
+	a.service.Start(ctx)
 
 	go func() {
 		serverErrors <- a.httpServer.ListenAndServe()
