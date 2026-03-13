@@ -73,3 +73,16 @@ Stabilized the first backend repair slice by making the scenario session snapsho
 - /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/internal/scenario/server/handler.go — Mutating endpoints now return fresh snapshots
 - /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/internal/scenario/runtime/session_test.go — Session tests cover UI-in-snapshot and speed mutation behavior
 - /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/internal/scenario/server/handler_test.go — HTTP tests assert returned snapshots for step, switch, spec, reset, and speed
+
+
+## 2026-03-13
+
+Collapsed the canonical application bootstrap onto the scenario runtime so the default app, the pod-demo binary, the scenario-demo binary, and the Vite proxy all target the same backend behavior and port
+
+### Related Files
+
+- /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/internal/app/app.go — Default app now loads scenarios and serves the scenario runtime
+- /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/internal/app/app_test.go — New bootstrap test for the canonical scenario app
+- /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/cmd/pod-demo/main.go — Default binary now boots the scenario runtime app
+- /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/cmd/scenario-demo/main.go — Scenario demo binary reduced to an alias of the canonical app
+- /home/manuel/code/wesen/2026-03-13--pod-deployment-demo/ui/vite.config.ts — Dev proxy realigned to the canonical backend port

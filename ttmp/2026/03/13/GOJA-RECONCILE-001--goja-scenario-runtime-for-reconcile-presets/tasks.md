@@ -15,9 +15,9 @@
 - [x] Return fresh authoritative session snapshots from mutating scenario API endpoints
 - [x] Publish immediate snapshot or state update events for spec, speed, run, pause, reset, and preset switch mutations
 - [x] Add backend tests that lock the authoritative mutation contract in place
-- [ ] Collapse the default `internal/app` bootstrap onto the scenario runtime instead of the legacy pod demo service
-- [ ] Align the default Go server port and the Vite dev proxy so development and the canonical app target the same backend
-- [ ] Keep `cmd/scenario-demo` as a thin alias or remove its behavioral divergence from the canonical app path
+- [x] Collapse the default `internal/app` bootstrap onto the scenario runtime instead of the legacy pod demo service
+- [x] Align the default Go server port and the Vite dev proxy so development and the canonical app target the same backend
+- [x] Keep `cmd/scenario-demo` as a thin alias or remove its behavioral divergence from the canonical app path
 - [ ] Update the new React workbench to consume authoritative mutation responses instead of optimistic local state
 - [ ] Remove the UI-side need for extra active-preset fetches where the session snapshot can carry the required data
 - [ ] Regenerate embedded frontend assets so the Go-served UI matches `ui/src/ScenarioApp.tsx`

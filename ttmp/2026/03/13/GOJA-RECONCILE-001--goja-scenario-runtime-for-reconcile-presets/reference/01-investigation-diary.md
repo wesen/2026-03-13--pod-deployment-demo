@@ -487,3 +487,81 @@ fix it, add tasks (detailed granular tasks) and go task by task.
 - Validation command: `go test ./internal/scenario/... -count=1`
 - New snapshot field: active preset `ui`
 - Mutating endpoints now return `{"ok": true, "snapshot": ...}`
+
+## Step 6: Collapse The Canonical App Onto The Scenario Runtime
+
+Once the backend state contract was fixed, the next most important problem was the split application topology. The runtime and workbench could still appear broken because the default application path in the repository was not the same product that the Vite development flow targeted. This slice fixed that by making `internal/app` serve the scenario runtime and by removing the behavioral divergence between `cmd/pod-demo` and `cmd/scenario-demo`.
+
+This does not delete the old pod-demo packages yet, but it does make them non-canonical. The important result is that a developer can now think "the app" and mean one backend graph instead of two different ones.
+
+### Prompt Context
+
+**User prompt (verbatim):** (same as Step 5)
+
+**Assistant interpretation:** Continue the repair plan after the authoritative backend fix and remove the split between the default app path and the scenario runtime path.
+
+**Inferred user intent:** Make the repository coherent enough that backend and frontend debugging are happening against the same application.
+
+**Commit (code):** Pending during this diary entry
+
+### What I did
+
+- Rewrote `internal/app/app.go` so the default app now:
+  - resolves the scenarios directory,
+  - loads the preset catalog,
+  - creates the scenario session,
+  - serves the scenario handler.
+- Removed the old `system.Service` and old `internal/server` handler from the default app bootstrap path.
+- Added `internal/app/app_test.go` to prove the default app now exposes `/api/session/snapshot`.
+- Updated `cmd/pod-demo/main.go` to handle the new `app.New() (*App, error)` signature.
+- Replaced `cmd/scenario-demo/main.go` with a thin alias to the canonical app so it no longer represents a separate backend behavior.
+- Changed the Vite proxy back to port `3001` so development targets the same canonical app path.
+
+### Why
+
+- The review showed that the repo-level split was more damaging than the local runtime implementation details.
+- Fixing the canonical bootstrap now makes all future frontend work much more trustworthy because development and the default Go server point at the same backend.
+
+### What worked
+
+- `gofmt` ran cleanly on the updated app and command files.
+- `go test ./... -count=1` passed after the bootstrap swap.
+- `npm --prefix ui run typecheck` still passed after the proxy update.
+
+### What didn't work
+
+- Nothing failed in this slice. The remaining work is now concentrated in the frontend cleanup and embed pipeline sync.
+
+### What I learned
+
+- The smallest meaningful way to reduce the app split was not to delete old packages immediately. It was to move the canonical bootstrap first and let the old packages become inert legacy code.
+- Once the default app is canonical again, debugging instructions become much simpler for an intern.
+
+### What was tricky to build
+
+- The app package previously assumed an always-valid in-memory pod demo service. The scenario runtime requires filesystem-backed scenario loading, so the bootstrap needed real error handling and scenario root resolution instead of a zero-error constructor.
+
+### What warrants a second pair of eyes
+
+- `internal/server` and `internal/system` still exist in the repository and still pass their own tests, so someone unfamiliar with the migration could still treat them as active code.
+- The final frontend cleanup should verify that no hidden assumptions about port `3002` remain anywhere else in the repo or docs.
+
+### What should be done in the future
+
+- Update the React workbench to consume the authoritative backend responses.
+- Regenerate and commit the embedded assets so the Go-served UI matches the new workbench source.
+
+### Code review instructions
+
+- Start with `internal/app/app.go`.
+- Then compare `cmd/pod-demo/main.go` and `cmd/scenario-demo/main.go`.
+- Confirm `ui/vite.config.ts` now proxies to `3001`.
+- Run:
+  - `go test ./... -count=1`
+  - `npm --prefix ui run typecheck`
+
+### Technical details
+
+- Canonical backend port: `:3001`
+- Scenario root resolution now defaults to `<repo>/scenarios`
+- New bootstrap test path: `/api/session/snapshot`
