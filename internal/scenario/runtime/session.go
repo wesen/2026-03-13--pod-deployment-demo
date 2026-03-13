@@ -179,7 +179,7 @@ func (s *Session) UpdateSpec(spec map[string]any) SessionState {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.desired = deepCopyMap(spec)
-	s.last = s.buildSnapshot()
+	s.last.Desired = deepCopyMap(s.desired)
 	s.publishStateLocked("snapshot.updated")
 	return s.currentStateLocked()
 }

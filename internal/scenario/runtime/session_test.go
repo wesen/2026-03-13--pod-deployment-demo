@@ -1,6 +1,7 @@
 package runtime_test
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/manuel/wesen/pod-deployment-demo/internal/events"
@@ -165,6 +166,30 @@ func TestSession_ZombieFleet_Step(t *testing.T) {
 	}
 }
 
+func TestSession_ZombieFleet_RemainsJSONEncodableAcrossMultipleSteps(t *testing.T) {
+	cat := loadCatalog(t)
+	preset, ok := cat.ByID("zombie-fleet")
+	if !ok {
+		t.Fatal("preset zombie-fleet not found")
+	}
+
+	hub := events.NewHub()
+	sess, err := runtime.NewSession(&preset, hub)
+	if err != nil {
+		t.Fatalf("new session: %v", err)
+	}
+
+	for i := 0; i < 3; i++ {
+		if _, err := sess.Step(); err != nil {
+			t.Fatalf("step %d: %v", i+1, err)
+		}
+	}
+
+	if _, err := json.Marshal(sess.CurrentSnapshot()); err != nil {
+		t.Fatalf("expected current snapshot to stay JSON encodable, got %v", err)
+	}
+}
+
 func TestSession_PresetSwitch(t *testing.T) {
 	cat := loadCatalog(t)
 	space, _ := cat.ByID("space-station")
@@ -250,6 +275,47 @@ func TestSession_SpecUpdate(t *testing.T) {
 	}
 	if state.Desired["o2Percent"] != 25.0 {
 		t.Errorf("expected snapshot desired o2Percent 25, got %v", state.Desired["o2Percent"])
+	}
+}
+
+func TestSession_SpecUpdatePreservesCurrentRuntimeView(t *testing.T) {
+	cat := loadCatalog(t)
+	preset, _ := cat.ByID("space-station")
+
+	hub := events.NewHub()
+	sess, err := runtime.NewSession(&preset, hub)
+	if err != nil {
+		t.Fatalf("new session: %v", err)
+	}
+
+	before, err := sess.Step()
+	if err != nil {
+		t.Fatalf("step: %v", err)
+	}
+	if len(before.Actual) == 0 {
+		t.Fatal("expected actual state after step")
+	}
+	if len(before.Actions) == 0 {
+		t.Fatal("expected actions after step")
+	}
+
+	state := sess.UpdateSpec(map[string]any{
+		"o2Percent":     25.0,
+		"co2Ppm":        500.0,
+		"pressureKpa":   101.0,
+		"tempC":         22.0,
+		"crewAwake":     4.0,
+		"hydroponicsOn": true,
+	})
+
+	if len(state.Actual) == 0 {
+		t.Fatal("expected actual state to be preserved on spec update")
+	}
+	if len(state.Actions) == 0 {
+		t.Fatal("expected actions to be preserved on spec update")
+	}
+	if len(state.AllLogs) == 0 {
+		t.Fatal("expected historical logs to be preserved on spec update")
 	}
 }
 

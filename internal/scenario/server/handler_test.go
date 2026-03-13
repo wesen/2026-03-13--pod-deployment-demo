@@ -66,6 +66,12 @@ func TestGetSnapshot(t *testing.T) {
 	if w.Code != 200 {
 		t.Fatalf("expected 200, got %d", w.Code)
 	}
+	if w.Body.Len() == 0 {
+		t.Fatal("expected non-empty snapshot body")
+	}
+	if !json.Valid(w.Body.Bytes()) {
+		t.Fatalf("expected valid json body, got %q", w.Body.String())
+	}
 
 	var snap map[string]any
 	if err := json.NewDecoder(w.Body).Decode(&snap); err != nil {
@@ -76,6 +82,44 @@ func TestGetSnapshot(t *testing.T) {
 	}
 	if _, ok := snap["ui"]; !ok {
 		t.Fatalf("expected ui schema in session snapshot")
+	}
+}
+
+func TestZombieFleetSecondStepStillReturnsJSON(t *testing.T) {
+	cat, err := catalog.Load("../../../scenarios")
+	if err != nil {
+		t.Fatalf("load catalog: %v", err)
+	}
+
+	hub := events.NewHub()
+	preset, ok := cat.ByID("zombie-fleet")
+	if !ok {
+		t.Fatal("preset zombie-fleet not found")
+	}
+
+	session, err := runtime.NewSession(&preset, hub)
+	if err != nil {
+		t.Fatalf("new session: %v", err)
+	}
+
+	h := scenarioserver.NewHandler(cat, session, hub)
+
+	stepOnce := httptest.NewRecorder()
+	h.ServeHTTP(stepOnce, httptest.NewRequest(http.MethodPost, "/api/session/step", bytes.NewReader([]byte("{}"))))
+	if stepOnce.Code != http.StatusOK {
+		t.Fatalf("first step: expected 200, got %d: %s", stepOnce.Code, stepOnce.Body.String())
+	}
+
+	stepTwice := httptest.NewRecorder()
+	h.ServeHTTP(stepTwice, httptest.NewRequest(http.MethodPost, "/api/session/step", bytes.NewReader([]byte("{}"))))
+	if stepTwice.Code != http.StatusOK {
+		t.Fatalf("second step: expected 200, got %d: %s", stepTwice.Code, stepTwice.Body.String())
+	}
+	if stepTwice.Body.Len() == 0 {
+		t.Fatal("expected non-empty second-step body")
+	}
+	if !json.Valid(stepTwice.Body.Bytes()) {
+		t.Fatalf("expected valid json body, got %q", stepTwice.Body.String())
 	}
 }
 

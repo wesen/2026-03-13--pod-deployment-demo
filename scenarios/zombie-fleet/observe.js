@@ -1,16 +1,18 @@
 function observe(desired) {
   const current = getState("actual");
   const actual = current ? {
-    walls: current.walls || 1,
-    wallHp: (current.wallHp || []).map((hp) => hp),
-    turrets: current.turrets || 0,
-    turretAmmo: (current.turretAmmo || []).map((ammo) => ammo),
+    walls: current.walls !== undefined ? current.walls : 1,
+    wallHp: Array.isArray(current.wallHp) ? current.wallHp.map((hp) => hp) : [100],
+    turrets: current.turrets !== undefined ? current.turrets : 0,
+    turretAmmo: Array.isArray(current.turretAmmo)
+      ? current.turretAmmo.map((ammo) => ammo)
+      : [],
     fenceOn: !!current.fenceOn,
-    fenceCharge: current.fenceCharge || 0,
-    zombiesNearby: current.zombiesNearby || 0,
-    zombiesBreaching: current.zombiesBreaching || 0,
-    kills: current.kills || 0,
-    breaches: current.breaches || 0
+    fenceCharge: current.fenceCharge !== undefined ? current.fenceCharge : 0,
+    zombiesNearby: current.zombiesNearby !== undefined ? current.zombiesNearby : 0,
+    zombiesBreaching: current.zombiesBreaching !== undefined ? current.zombiesBreaching : 0,
+    kills: current.kills !== undefined ? current.kills : 0,
+    breaches: current.breaches !== undefined ? current.breaches : 0
   } : {
     walls: 1,
     wallHp: [100],
@@ -45,9 +47,9 @@ function observe(desired) {
 
   const surviving = Math.max(0, actual.zombiesNearby - killed);
   actual.zombiesBreaching = surviving;
-  if (surviving > 0 && actual.walls > 0) {
+  if (surviving > 0 && actual.walls > 0 && actual.wallHp.length >= actual.walls) {
     const topWall = actual.walls - 1;
-    actual.wallHp[topWall] -= surviving * 8;
+    actual.wallHp[topWall] = (actual.wallHp[topWall] ?? 100) - surviving * 8;
     if (actual.wallHp[topWall] <= 0) {
       actual.walls--;
       actual.wallHp.pop();

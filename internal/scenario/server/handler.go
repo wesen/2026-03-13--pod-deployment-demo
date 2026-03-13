@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -246,9 +247,15 @@ func (h *Handler) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 // --- helpers ---
 
 func writeJSON(w http.ResponseWriter, code int, payload any) {
+	data, err := json.Marshal(payload)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("encode json: %v", err), http.StatusInternalServerError)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
-	_ = json.NewEncoder(w).Encode(payload)
+	_, _ = w.Write(append(data, '\n'))
 }
 
 func writeError(w http.ResponseWriter, code int, message string) {
