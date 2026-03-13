@@ -35,6 +35,8 @@ WhenToUse: ""
 
 This ticket analyzes how to move from the current hardcoded pod demo and browser-side scenario sketch toward a generic Go-hosted reconcile runtime backed by goja. The imported source demonstrates preset-driven scenario phases in React, while the current repository demonstrates backend-owned loop and transport behavior in Go. The primary design document explains how to combine those two ideas into a preset-directory + goja-VM architecture for a new intern.
 
+This ticket now also contains a second intern-oriented review document that assesses the current implementation state after the runtime and workbench work landed. That review explains what is structurally good, what is still split or stale, and what should be stabilized first.
+
 ## Key Links
 
 - **Related Files**: See frontmatter RelatedFiles field

@@ -20,6 +20,6 @@
 - [x] Keep `cmd/scenario-demo` as a thin alias or remove its behavioral divergence from the canonical app path
 - [x] Update the new React workbench to consume authoritative mutation responses instead of optimistic local state
 - [x] Remove the UI-side need for extra active-preset fetches where the session snapshot can carry the required data
-- [ ] Regenerate embedded frontend assets so the Go-served UI matches `ui/src/ScenarioApp.tsx`
-- [ ] Run full validation for backend, frontend, embed pipeline, and ticket hygiene
-- [ ] Record each stabilization slice in the diary and changelog and commit each slice cleanly
+- [x] Regenerate embedded frontend assets so the Go-served UI matches `ui/src/ScenarioApp.tsx`
+- [x] Run full validation for backend, frontend, embed pipeline, and ticket hygiene
+- [x] Record each stabilization slice in the diary and changelog and commit each slice cleanly

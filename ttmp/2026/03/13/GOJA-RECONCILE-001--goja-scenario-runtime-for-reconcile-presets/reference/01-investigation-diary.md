@@ -645,3 +645,81 @@ This is the first point where the frontend starts behaving like a real client of
 
 - Active UI schema now comes from `snapshot.ui`
 - Mutation helpers now expect `{"snapshot": ...}` response payloads
+
+## Step 8: Refresh The Embedded Assets And Close The Ticket Loop
+
+With the runtime, bootstrap, and React workbench all aligned, the last missing step was to make the Go-served asset path match the source tree again. Until this step, the canonical app could still serve stale frontend assets even though the UI code and backend contracts were already fixed. This slice regenerated the embedded bundle, reran the validation stack, and closed the remaining ticket tasks.
+
+This is the step that makes the repository coherent again from the perspective of a new intern checking out the repo and running the default application path.
+
+### Prompt Context
+
+**User prompt (verbatim):** (same as Step 5)
+
+**Assistant interpretation:** Finish the stabilization plan rather than stopping after partial fixes, and leave the ticket in a validated, continuation-friendly state.
+
+**Inferred user intent:** End with one coherent product path, not a technically improved but still stale or half-documented repo.
+
+**Commit (code):** Pending during this diary entry
+
+### What I did
+
+- Ran `go generate ./internal/web` to rebuild the embedded frontend assets from the updated workbench UI.
+- Verified that the old embedded bundle was replaced by the new workbench bundle.
+- Re-ran:
+  - `go test ./... -count=1`
+  - `go test -race ./internal/scenario/... -count=1`
+  - `npm --prefix ui run typecheck`
+  - `docmgr doctor --root ttmp --ticket GOJA-RECONCILE-001 --stale-after 30`
+- Marked the remaining ticket tasks complete.
+
+### Why
+
+- Without regenerating the embedded assets, the canonical Go app could still serve stale frontend output even though the source tree had been repaired.
+- The final validation pass was necessary because the fixes crossed backend runtime, app bootstrap, frontend contract, and embed pipeline boundaries.
+
+### What worked
+
+- `go generate ./internal/web` completed successfully and produced a new embedded JS asset.
+- Full Go tests passed.
+- Scenario race tests passed.
+- TypeScript typechecking passed.
+- `docmgr doctor` passed cleanly.
+
+### What didn't work
+
+- A live port-bound smoke test remains unavailable in this sandbox environment, so this final step still relies on build/test validation rather than an interactive browser run.
+
+### What I learned
+
+- The embed pipeline is the last mile of frontend/backend integration in this repo. Without running it, development and production continue to diverge even after the source code is fixed.
+- Closing the ticket cleanly required equal attention to code, assets, and documentation.
+
+### What was tricky to build
+
+- The main difficulty was sequencing. Regenerating embed assets too early would have baked in a UI that still depended on the old optimistic contract. Waiting until after the backend and React fixes made the embed refresh meaningful and stable.
+
+### What warrants a second pair of eyes
+
+- The old legacy packages still exist and still compile, even though the canonical app path no longer uses them. A future cleanup can decide whether to archive or delete them.
+- A live manual smoke test should still be run outside the sandbox once convenient.
+
+### What should be done in the future
+
+- Optional cleanup: remove the now-unused `/api/presets/{id}/ui` route if no other client needs it.
+- Optional cleanup: retire or archive the old pod-demo-specific packages once the team is confident the scenario runtime is the only supported product path.
+
+### Code review instructions
+
+- Confirm `internal/web/embed/public/assets/index-Ca1ZU2Ty.js` exists and replaced the old bundle.
+- Re-run:
+  - `go generate ./internal/web`
+  - `go test ./... -count=1`
+  - `go test -race ./internal/scenario/... -count=1`
+  - `npm --prefix ui run typecheck`
+  - `docmgr doctor --root ttmp --ticket GOJA-RECONCILE-001 --stale-after 30`
+
+### Technical details
+
+- New embedded bundle: `internal/web/embed/public/assets/index-Ca1ZU2Ty.js`
+- Removed embedded bundle: `internal/web/embed/public/assets/index-C0SybDHH.js`
