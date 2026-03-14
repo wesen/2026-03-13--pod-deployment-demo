@@ -414,7 +414,7 @@
 }
 
 .wb-log-scroll {
-  max-height: 360px;
+  max-height: 560px;
   overflow: auto;
 }
 
@@ -445,6 +445,16 @@
   0%, 100% { box-shadow: 0 0 0 rgba(74, 208, 125, 0.1); }
   50% { box-shadow: 0 0 22px rgba(74, 208, 125, 0.2); }
 }
+
+/* ── JSON colorization ── */
+
+.wb-json-key { color: var(--wb-cyan); }
+.wb-json-str { color: #86efac; }
+.wb-json-num { color: #fbbf24; }
+.wb-json-bool { color: #f0abfc; }
+.wb-json-null { color: rgba(255, 255, 255, 0.35); font-style: italic; }
+.wb-json-bracket { color: rgba(255, 255, 255, 0.45); }
+.wb-json-punct { color: rgba(255, 255, 255, 0.3); }
 
 /* ── Section tabs ── */
 
