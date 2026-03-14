@@ -1,54 +1,44 @@
-import type { ReactNode } from "react";
-
-function colorizeJSON(value: unknown, indent = 0): ReactNode[] {
+function colorizeJSON(value: unknown, indent = 0): string {
   const pad = "  ".repeat(indent);
-  const nodes: ReactNode[] = [];
-  let key = 0;
 
   if (value === null) {
-    nodes.push(<span key={key++} className="wb-json-null">null</span>);
-  } else if (typeof value === "boolean") {
-    nodes.push(<span key={key++} className="wb-json-bool">{String(value)}</span>);
-  } else if (typeof value === "number") {
-    nodes.push(<span key={key++} className="wb-json-num">{String(value)}</span>);
-  } else if (typeof value === "string") {
-    nodes.push(<span key={key++} className="wb-json-str">"{value}"</span>);
-  } else if (Array.isArray(value)) {
-    if (value.length === 0) {
-      nodes.push(<span key={key++} className="wb-json-bracket">[]</span>);
-    } else {
-      nodes.push(<span key={key++} className="wb-json-bracket">[</span>);
-      nodes.push("\n");
-      value.forEach((item, i) => {
-        nodes.push(pad + "  ");
-        nodes.push(...colorizeJSON(item, indent + 1));
-        if (i < value.length - 1) nodes.push(<span key={`c${i}`} className="wb-json-punct">,</span>);
-        nodes.push("\n");
-      });
-      nodes.push(pad);
-      nodes.push(<span key={key++} className="wb-json-bracket">]</span>);
-    }
-  } else if (typeof value === "object") {
-    const entries = Object.entries(value as Record<string, unknown>);
-    if (entries.length === 0) {
-      nodes.push(<span key={key++} className="wb-json-bracket">{"{}"}</span>);
-    } else {
-      nodes.push(<span key={key++} className="wb-json-bracket">{"{"}</span>);
-      nodes.push("\n");
-      entries.forEach(([k, v], i) => {
-        nodes.push(pad + "  ");
-        nodes.push(<span key={`k${i}`} className="wb-json-key">"{k}"</span>);
-        nodes.push(<span key={`s${i}`} className="wb-json-punct">: </span>);
-        nodes.push(...colorizeJSON(v, indent + 1));
-        if (i < entries.length - 1) nodes.push(<span key={`c${i}`} className="wb-json-punct">,</span>);
-        nodes.push("\n");
-      });
-      nodes.push(pad);
-      nodes.push(<span key={key++} className="wb-json-bracket">{"}"}</span>);
-    }
+    return '<span class="wb-json-null">null</span>';
   }
-
-  return nodes;
+  if (typeof value === "boolean") {
+    return `<span class="wb-json-bool">${value}</span>`;
+  }
+  if (typeof value === "number") {
+    return `<span class="wb-json-num">${value}</span>`;
+  }
+  if (typeof value === "string") {
+    const escaped = value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    return `<span class="wb-json-str">"${escaped}"</span>`;
+  }
+  if (Array.isArray(value)) {
+    if (value.length === 0) return '<span class="wb-json-bracket">[]</span>';
+    const items = value
+      .map((item) => pad + "  " + colorizeJSON(item, indent + 1))
+      .join('<span class="wb-json-punct">,</span>\n');
+    return `<span class="wb-json-bracket">[</span>\n${items}\n${pad}<span class="wb-json-bracket">]</span>`;
+  }
+  if (typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>);
+    if (entries.length === 0) return '<span class="wb-json-bracket">{}</span>';
+    const items = entries
+      .map(([k, v]) => {
+        const escaped = k.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        return (
+          pad +
+          "  " +
+          `<span class="wb-json-key">"${escaped}"</span>` +
+          '<span class="wb-json-punct">: </span>' +
+          colorizeJSON(v, indent + 1)
+        );
+      })
+      .join('<span class="wb-json-punct">,</span>\n');
+    return `<span class="wb-json-bracket">{</span>\n${items}\n${pad}<span class="wb-json-bracket">}</span>`;
+  }
+  return String(value);
 }
 
 export function DataPanel(props: {
@@ -77,13 +67,16 @@ export function DataPanel(props: {
         {props.count !== undefined && <span className="wb-panel-badge">{props.count}</span>}
       </div>
       <div className="wb-panel-body">
-        <pre className="wb-data-pre">
-          {isEmpty ? (
+        {isEmpty ? (
+          <pre className="wb-data-pre">
             <span style={{ color: "var(--muted)", fontStyle: "italic" }}>empty</span>
-          ) : (
-            colorizeJSON(props.data)
-          )}
-        </pre>
+          </pre>
+        ) : (
+          <pre
+            className="wb-data-pre"
+            dangerouslySetInnerHTML={{ __html: colorizeJSON(props.data) }}
+          />
+        )}
       </div>
     </div>
   );

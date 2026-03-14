@@ -105,35 +105,37 @@ export function ScenarioWorkbench() {
         ))}
       </div>
 
-      {activeSection === "dashboard" && (
-        <>
-          <div className="wb-grid">
-            <SpecPanel
-              rawMode={rawMode}
-              jsonDraft={jsonDraft}
-              desired={snapshot.desired}
-              ui={snapshot.ui}
-              onToggleMode={() => {
-                setEditorError(null);
-                setRawMode((current) => !current);
-              }}
-              onJsonDraftChange={setJsonDraft}
-              onSaveRawJSON={saveRawJSON}
-              onUpdateSpecKey={updateSpecKey}
-            />
-            <StatePanels actual={snapshot.actual} diff={snapshot.diff} actions={snapshot.actions ?? []} />
-          </div>
+      <div className="wb-tab-content" key={activeSection}>
+        {activeSection === "dashboard" && (
+          <>
+            <div className="wb-grid">
+              <SpecPanel
+                rawMode={rawMode}
+                jsonDraft={jsonDraft}
+                desired={snapshot.desired}
+                ui={snapshot.ui}
+                onToggleMode={() => {
+                  setEditorError(null);
+                  setRawMode((current) => !current);
+                }}
+                onJsonDraftChange={setJsonDraft}
+                onSaveRawJSON={saveRawJSON}
+                onUpdateSpecKey={updateSpecKey}
+              />
+              <StatePanels actual={snapshot.actual} diff={snapshot.diff} actions={snapshot.actions ?? []} />
+            </div>
+            <RuntimeLogPanel lines={snapshot.allLogs ?? []} logEndRef={logEndRef} />
+          </>
+        )}
+
+        {activeSection === "code" && (
+          <CodePanel sources={sources} loading={sourcesLoading} />
+        )}
+
+        {activeSection === "logs" && (
           <RuntimeLogPanel lines={snapshot.allLogs ?? []} logEndRef={logEndRef} />
-        </>
-      )}
-
-      {activeSection === "code" && (
-        <CodePanel sources={sources} loading={sourcesLoading} />
-      )}
-
-      {activeSection === "logs" && (
-        <RuntimeLogPanel lines={snapshot.allLogs ?? []} logEndRef={logEndRef} />
-      )}
+        )}
+      </div>
     </main>
   );
 }
