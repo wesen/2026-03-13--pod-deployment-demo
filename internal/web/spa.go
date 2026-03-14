@@ -23,7 +23,7 @@ func NewSPAHandlerFS(staticFS fs.FS) http.Handler {
 			if !serveFile(w, staticFS, "index.html") {
 				w.Header().Set("Content-Type", "text/html; charset=utf-8")
 				w.WriteHeader(http.StatusServiceUnavailable)
-				_, _ = w.Write([]byte("<!doctype html><html><body><h1>frontend assets missing</h1><p>Run go generate ./internal/web or npm --prefix ui run build.</p></body></html>"))
+				_, _ = w.Write([]byte("<!doctype html><html><body><h1>frontend assets missing</h1><p>Run go generate ./internal/web or pnpm --dir ui run build.</p></body></html>"))
 			}
 		}
 	})

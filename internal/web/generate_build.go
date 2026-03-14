@@ -19,7 +19,8 @@ func main() {
 		panic(err)
 	}
 
-	buildCmd := exec.Command("npm", "--prefix", filepath.Join(root, "ui"), "run", "build")
+	buildCmd := exec.Command("pnpm", "run", "build")
+	buildCmd.Dir = filepath.Join(root, "ui")
 	buildCmd.Stdout = os.Stdout
 	buildCmd.Stderr = os.Stderr
 	if err := buildCmd.Run(); err != nil {

@@ -14,6 +14,7 @@ func TestAddDocToHelpSystemLoadsProjectDocs(t *testing.T) {
 	}
 
 	for _, slug := range []string{
+		"intern-guide-to-scenario-runtime",
 		"pod-deployment-demo",
 		"runtime-architecture",
 		"reconciliation-loop-reference",

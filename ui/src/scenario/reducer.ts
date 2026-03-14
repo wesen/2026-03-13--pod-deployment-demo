@@ -1,5 +1,19 @@
 import type { ServerEvent, Snapshot } from "./types";
 
+export function decodeServerEventMessage(message: unknown): ServerEvent {
+  if (typeof message !== "string" || message.trim() === "") {
+    throw new Error("empty websocket message from server");
+  }
+
+  try {
+    return JSON.parse(message) as ServerEvent;
+  } catch (error) {
+    throw new Error(
+      `invalid websocket json: ${error instanceof Error ? error.message : "parse failed"}`,
+    );
+  }
+}
+
 export function reduceEvent(current: Snapshot, event: ServerEvent): Snapshot {
   switch (event.type) {
     case "snapshot":

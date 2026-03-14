@@ -11,8 +11,8 @@ import {
   switchPreset as switchPresetRequest,
   updateSessionSpec,
 } from "./api";
-import { reduceEvent } from "./reducer";
-import { EMPTY_SNAPSHOT, type PresetMeta, type ServerEvent, type Snapshot } from "./types";
+import { decodeServerEventMessage, reduceEvent } from "./reducer";
+import { EMPTY_SNAPSHOT, type PresetMeta, type Snapshot } from "./types";
 
 type SessionActions = {
   switchPreset: (id: string) => Promise<void>;
@@ -81,14 +81,11 @@ export function useScenarioSession(): {
         if (!active) {
           return;
         }
-        if (typeof message.data !== "string" || message.data.trim() === "") {
-          setError("empty websocket message from server");
-          return;
-        }
 
         try {
-          const event = JSON.parse(message.data) as ServerEvent;
+          const event = decodeServerEventMessage(message.data);
           setSnapshot((current) => reduceEvent(current, event));
+          setError(null);
         } catch (err) {
           setError(err instanceof Error ? err.message : "invalid websocket json");
         }
