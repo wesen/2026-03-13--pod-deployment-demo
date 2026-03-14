@@ -264,3 +264,82 @@ Colorized JSON is dramatically easier to scan than monochrome text. Building it 
 - File: `ui/src/scenario/components/DataPanel.tsx`
 - The `colorizeJSON` helper at top of file
 - CSS: `ui/src/scenario/workbench.css` — search for "JSON colorization"
+
+## Step 6: Fix syntax highlighting and redesign UI
+
+The initial implementation had two problems: (1) `hljs.highlightElement` doesn't play well
+with React's rendering cycle — it mutated the DOM but React kept overwriting it, resulting in
+monochrome code, and (2) the overall visual design was generic and flat. This step fixed both.
+
+### Prompt Context
+
+**User prompt (verbatim):** "the UI kinda looks like ass doesn't it?"
+
+**Assistant interpretation:** The syntax highlighting isn't working and the visual design needs
+a serious quality upgrade.
+
+**Inferred user intent:** Make the UI look genuinely good — not just functional, but visually
+distinctive and polished.
+
+**Commit (code):** b6230ca — ":lipstick: Nicer UI"
+
+### What I did
+- **CodePanel**: Replaced `hljs.highlightElement` (DOM mutation) with `hljs.highlight` (string-based)
+  using `useMemo` + `dangerouslySetInnerHTML`. Added per-phase accent colors (green/amber/violet/rose),
+  file indicator with animated colored dot, line count badge.
+- **DataPanel**: Rewrote `colorizeJSON` from ReactNode[] to string-based HTML builder to eliminate
+  hundreds of "duplicate key" React errors. Same visual output, zero warnings.
+- **workbench.css**: Major overhaul:
+  - Added radial cyan glow behind the workbench (`::before` pseudo-element)
+  - Breathing animation on the status dot
+  - Redesigned section tabs: inset dark background, glowing active state, enter animation on tab switch
+  - Deeper panel shadows, hover border transitions
+  - Code panel: gradient background, separate header bar, per-phase colored tab accents via CSS custom property
+  - Bouncy cubic-bezier on toggle thumb
+  - Hover states on log lines
+  - Responsive code header layout
+
+### Why
+The first implementation was functional but aesthetically flat. The frontend-design skill
+emphasizes committing to a bold aesthetic direction — the existing dark/cyan/glassmorphic
+palette was good but the execution lacked atmosphere and depth.
+
+### What worked
+- `hljs.highlight(source, {language: "javascript"}).value` with `useMemo` is the correct
+  React-idiomatic approach — instant, no DOM mutation side effects
+- String-based HTML for both JSON colorization and syntax highlighting eliminates all React
+  key management complexity
+- CSS `color-mix()` for per-phase tab accent colors works cleanly
+
+### What didn't work
+- `hljs.highlightElement` never worked correctly with React — it mutates innerHTML but React
+  re-renders from virtual DOM, causing the highlighted content to be overwritten or logged
+  as "Element previously highlighted"
+- ReactNode[] approach for JSON colorization caused key collisions because recursive calls
+  reuse the same key prefixes at different nesting levels
+
+### What I learned
+- For syntax highlighting in React, always use the string-based API (`hljs.highlight`) rather
+  than the DOM-mutation API (`highlightElement`)
+- `dangerouslySetInnerHTML` is the right tool when you're building trusted HTML from known
+  data (syntax highlighting, JSON colorization) — fighting React's key system is worse
+- `color-mix(in srgb, ...)` is well-supported and great for dynamic accent theming in CSS
+
+### What was tricky to build
+- Getting the per-phase accent color into the active tab: used a CSS custom property
+  `--tab-accent` set via inline style on the active button, then referenced in the CSS rule
+  with `color-mix(in srgb, var(--tab-accent) 18%, transparent)` for the background
+
+### What warrants a second pair of eyes
+- Using `dangerouslySetInnerHTML` in DataPanel for user-controlled data. The `colorizeJSON`
+  function escapes `<`, `>`, and `&` in string values, but worth verifying no injection path
+  exists through the JSON keys or values coming from the scenario runtime.
+
+### What should be done in the future
+- Consider adding a line-highlight effect that follows the current execution phase in the
+  code panel (e.g., highlighting the active function during observe/compare/plan/execute)
+
+### Code review instructions
+- `CodePanel.tsx`: the `useMemo` + `hljs.highlight` pattern at lines 28-31
+- `DataPanel.tsx`: the string-based `colorizeJSON` function
+- `workbench.css`: search for the section comments (`═══`) for major sections
