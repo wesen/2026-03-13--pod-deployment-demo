@@ -1,17 +1,25 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { SpecPanel } from "./SpecPanel";
+import { fetchPresetSources } from "../api";
+import type { PresetSources } from "../types";
+import { useScenarioSession } from "../useScenarioSession";
+import { CodePanel } from "./CodePanel";
 import { PresetStrip } from "./PresetStrip";
 import { RuntimeLogPanel } from "./RuntimeLogPanel";
+import { SpecPanel } from "./SpecPanel";
 import { StatePanels } from "./StatePanels";
 import { TransportBar } from "./TransportBar";
-import { useScenarioSession } from "../useScenarioSession";
+
+type Section = "dashboard" | "code" | "logs";
 
 export function ScenarioWorkbench() {
   const { presets, snapshot, connected, error, actions } = useScenarioSession();
   const [rawMode, setRawMode] = useState(false);
   const [jsonDraft, setJsonDraft] = useState("");
   const [editorError, setEditorError] = useState<string | null>(null);
+  const [activeSection, setActiveSection] = useState<Section>("dashboard");
+  const [sources, setSources] = useState<PresetSources | null>(null);
+  const [sourcesLoading, setSourcesLoading] = useState(false);
   const logEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -23,6 +31,18 @@ export function ScenarioWorkbench() {
       setJsonDraft(JSON.stringify(snapshot.desired, null, 2));
     }
   }, [snapshot.desired, rawMode]);
+
+  // Fetch sources when preset changes
+  useEffect(() => {
+    const presetId = snapshot.preset.id;
+    if (!presetId) return;
+
+    setSourcesLoading(true);
+    fetchPresetSources(presetId)
+      .then(setSources)
+      .catch(() => setSources(null))
+      .finally(() => setSourcesLoading(false));
+  }, [snapshot.preset.id]);
 
   const updateSpecKey = useCallback(
     (key: string, value: unknown) => {
@@ -73,24 +93,47 @@ export function ScenarioWorkbench() {
         onSpeedChange={(speedMs) => void actions.setSpeed(speedMs)}
       />
 
-      <div className="wb-grid">
-        <SpecPanel
-          rawMode={rawMode}
-          jsonDraft={jsonDraft}
-          desired={snapshot.desired}
-          ui={snapshot.ui}
-          onToggleMode={() => {
-            setEditorError(null);
-            setRawMode((current) => !current);
-          }}
-          onJsonDraftChange={setJsonDraft}
-          onSaveRawJSON={saveRawJSON}
-          onUpdateSpecKey={updateSpecKey}
-        />
-        <StatePanels actual={snapshot.actual} diff={snapshot.diff} actions={snapshot.actions ?? []} />
+      <div className="wb-section-tabs">
+        {(["dashboard", "code", "logs"] as const).map((section) => (
+          <button
+            key={section}
+            className={`wb-section-tab${activeSection === section ? " active" : ""}`}
+            onClick={() => setActiveSection(section)}
+          >
+            {section}
+          </button>
+        ))}
       </div>
 
-      <RuntimeLogPanel lines={snapshot.allLogs ?? []} logEndRef={logEndRef} />
+      {activeSection === "dashboard" && (
+        <>
+          <div className="wb-grid">
+            <SpecPanel
+              rawMode={rawMode}
+              jsonDraft={jsonDraft}
+              desired={snapshot.desired}
+              ui={snapshot.ui}
+              onToggleMode={() => {
+                setEditorError(null);
+                setRawMode((current) => !current);
+              }}
+              onJsonDraftChange={setJsonDraft}
+              onSaveRawJSON={saveRawJSON}
+              onUpdateSpecKey={updateSpecKey}
+            />
+            <StatePanels actual={snapshot.actual} diff={snapshot.diff} actions={snapshot.actions ?? []} />
+          </div>
+          <RuntimeLogPanel lines={snapshot.allLogs ?? []} logEndRef={logEndRef} />
+        </>
+      )}
+
+      {activeSection === "code" && (
+        <CodePanel sources={sources} loading={sourcesLoading} />
+      )}
+
+      {activeSection === "logs" && (
+        <RuntimeLogPanel lines={snapshot.allLogs ?? []} logEndRef={logEndRef} />
+      )}
     </main>
   );
 }
